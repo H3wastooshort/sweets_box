@@ -100,6 +100,10 @@ int8_t main_screen = 0; //which standby screen to show -2 = in some menu
 int8_t setting_selected = -2; //wich setting is selected  -2 = none->standby screen
 bool editing_setting = false; //set true by interrupt when a setting function should be executed.
 
+//millis() when the buttons were pressed last time (if 0xFFFF, buttons are up)
+uint32_t btn_1_down_millis = 0xFFFF;
+uint32_t btn_2_down_millis = 0xFFFF;
+
 //menus and stuff
 
 void clearSerialInput() {
@@ -268,11 +272,13 @@ void setting_date() { //note: this function is for setting the date and time, no
       case 3:
         loop_break = false;
     }
+
+    if (current_tm.Hour > 23) current_tm.Hour = 0;
   }
   loop_break = true;
   while (loop_break) {
     lcd.setCursor(0, 0);
-    lcd.print(F("SET MINUTE"));
+    lcd.print(F("SET MINUTE     "));
     lcd.setCursor(0, 1);
     lcd.print(current_tm.Minute);
     lcd.print("            "); //clear line without flicker
@@ -287,11 +293,13 @@ void setting_date() { //note: this function is for setting the date and time, no
       case 3:
         loop_break = false;
     }
+
+    if (current_tm.Minute > 59) current_tm.Minute = 0;
   }
   loop_break = true;
   while (loop_break) {
     lcd.setCursor(0, 0);
-    lcd.print(F("SET DAY"));
+    lcd.print(F("SET DAY        "));
     lcd.setCursor(0, 1);
     lcd.print(current_tm.Day);
     lcd.print("            "); //clear line without flicker
@@ -306,11 +314,13 @@ void setting_date() { //note: this function is for setting the date and time, no
       case 3:
         loop_break = false;
     }
+
+    if (current_tm.Day > 31 or current_tm.Day < 1) current_tm.Day = 0;
   }
   loop_break = true;
   while (loop_break) {
     lcd.setCursor(0, 0);
-    lcd.print(F("SET MONTH"));
+    lcd.print(F("SET MONTH      "));
     lcd.setCursor(0, 1);
     lcd.print(current_tm.Month);
     lcd.print("            "); //clear line without flicker
@@ -325,12 +335,14 @@ void setting_date() { //note: this function is for setting the date and time, no
       case 3:
         loop_break = false;
     }
+
+    if (current_tm.Month > 12 or current_tm.Month < 1) current_tm.Month = 0;
   }
   loop_break = true;
   int calender_year = 2022;
   while (loop_break) {
     lcd.setCursor(0, 0);
-    lcd.print(F("SET YEAR"));
+    lcd.print(F("SET YEAR       "));
     lcd.setCursor(0, 1);
     lcd.print(calender_year);
     lcd.print("            "); //clear line without flicker
@@ -345,6 +357,8 @@ void setting_date() { //note: this function is for setting the date and time, no
       case 3:
         loop_break = false;
     }
+
+    //fuck it, you can set the year to 9999 or 0
   }
   current_tm.Year = CalendarYrToTm(calender_year);
   current_tm.Second = 0;
@@ -354,7 +368,7 @@ void setting_date() { //note: this function is for setting the date and time, no
 
 void setting_reset() { //Reset everyting to sensible values
   max_withdraw_per_day = 100; //g
-  buzzer_enabled = false;
+  buzzer_enabled = true;
   EEPROM.put(getVarAddrEEPROM(2), max_withdraw_per_day);
   EEPROM.put(getVarAddrEEPROM(3), current_weight); //Set starting weight day to current weight on scale
   EEPROM.put(getVarAddrEEPROM(4), (uint8_t)current_tm.Day); //Set starting weight day to today
@@ -379,8 +393,6 @@ void updateDisplay() {
     (*settings_functions[setting_selected])(); //hand off to the correct settings function
     editing_setting = false; //The function is done. This is set back to false to not run it again
     disable_button_handlers = false; //button contol menu again
-    main_screen = -2;
-    //setting_selected = 0;
 
     //cause redraw
     last_setting = -2;
@@ -557,7 +569,8 @@ void handleButton1() {
   if (disable_button_handlers) return; //Return if other button was first
   disable_button_handlers = true; //Set this so the other btn routine can't interfere with double-button detection
 
-  if (!debounceButton(BTN_1_PIN, true)) { //Wait for next trigger if still bouncing
+  //if (!debounceButton(BTN_1_PIN, true)) { //Wait for next trigger if still bouncing
+  if (millis() - btn_1_down_millis < DEBOUNCE_DELAY) {
     disable_button_handlers = false;
     return;
   }
@@ -584,7 +597,8 @@ void handleButton2() {
   if (disable_button_handlers) return; //Return if other button was first
   disable_button_handlers = true; //Set this so the other btn routine can't interfere with double-button
 
-  if (!debounceButton(BTN_2_PIN, true)) { //Wait for next trigger if still bouncing
+  //if (!debounceButton(BTN_2_PIN, true)) { //Wait for next trigger if still bouncing
+  if (millis() - btn_1_down_millis < DEBOUNCE_DELAY) {
     disable_button_handlers = false;
     return;
   }
@@ -624,6 +638,21 @@ void handleBothButtons() {
 
   disable_button_handlers = false; //Done with routine
 }
+
+void handleButton1Down() {
+  btn_1_down_millis = millis();
+}
+void handleButton1Up() {
+  btn_1_down_millis = 0xFFFF;
+}
+void handleButton2Down() {
+  btn_1_down_millis = millis();
+}
+void handleButton2Up() {
+  btn_1_down_millis = 0xFFFF;
+}
+
+
 
 void readDevices() {
   RTC.read(current_tm);
@@ -846,11 +875,16 @@ void setup() {
   Serial.println(F("Setting up button interrupts..."));
   pinMode(BTN_1_PIN, INPUT_PULLUP);
   pinMode(BTN_2_PIN, INPUT_PULLUP);
-  pinMode(LID_SENSOR_PIN, INPUT_PULLUP);//Technically not a button. whatever.
-  //This does not work because millis() is broken in interrupts. please dont ask how long it took me to debug this
+  pinMode(LID_SENSOR_PIN, INPUT_PULLUP);//Technically not a button. whatever
+  //This does not workcause millis() is broken in interrupts. please dont ask how long it took me to debug this
   //also it really sucks that this is broken because the loop time affects the button responsiveness (spoiler alert, its BAD)
   //attachInterrupt(digitalPinToInterrupt(BTN_1_PIN), handleButton1, FALLING);
   //attachInterrupt(digitalPinToInterrupt(BTN_2_PIN), handleButton2, FALLING);
+
+  attachInterrupt(digitalPinToInterrupt(BTN_1_PIN), handleButton1Down, FALLING);
+  attachInterrupt(digitalPinToInterrupt(BTN_1_PIN), handleButton1Up, RISING);
+  attachInterrupt(digitalPinToInterrupt(BTN_2_PIN), handleButton2Down, FALLING);
+  attachInterrupt(digitalPinToInterrupt(BTN_2_PIN), handleButton2Up, RISING);
 
   digitalWrite(LED_BUILTIN, LOW);
   digitalWrite(GREEN_LIGHTING_PIN, LOW);
