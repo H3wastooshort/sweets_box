@@ -459,7 +459,7 @@ void updateDisplay() {
       String setting_state;
       switch (setting_selected) {
         default:
-          main_screen = 0;
+          setting_selected = 0;
           Serial.println(F("MENU SYSTEM FAULT WHILE DRAWING DISPLAY!!")); //If you get this, something is extremely fucked
         //continues with case 0
 
@@ -486,6 +486,10 @@ void updateDisplay() {
 
         case 5:
           setting_state =  F("needs 1kg ref");
+          break;
+
+        case 6:
+          setting_state =  F("to defaults?");
           break;
       }
 
