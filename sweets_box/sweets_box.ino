@@ -107,9 +107,9 @@ int8_t main_screen = 0; //which standby screen to show -2 = in some menu
 int8_t setting_selected = -2; //wich setting is selected  -2 = none->standby screen
 bool editing_setting = false; //set true by interrupt when a setting function should be executed.
 
-//millis() when the buttons were pressed last time (if 0xFFFF, buttons are up)
-uint32_t btn_1_down_millis = 0xFFFF;
-uint32_t btn_2_down_millis = 0xFFFF;
+//millis() when the buttons were pressed last time (if 0xFFFFFFFF, buttons are up)
+uint32_t btn_1_down_millis = 0xFFFFFFFF;
+uint32_t btn_2_down_millis = 0xFFFFFFFF;
 
 uint32_t btn_1_up_millis = 0;
 uint32_t btn_2_up_millis = 0;
@@ -579,8 +579,8 @@ void handleButton1() {
   if (disable_button_handlers) return; //Return if other button was first
   disable_button_handlers = true; //Set this so the other btn routine can't interfere with double-button detection
 
-  //if (!debounceButton(BTN_1_PIN, true)) { //Wait for next trigger if still bouncing
-  if (millis() - btn_1_down_millis < DEBOUNCE_DELAY) {
+  //if (!debounceButton(BTN_1_PIN, true)) { //Wait for next trigger if still bouncing or released
+  if (millis() - btn_1_down_millis < DEBOUNCE_DELAY or btn_1_down_millis == 0xFFFFFFFF) {
     disable_button_handlers = false;
     return;
   }
@@ -600,7 +600,8 @@ void handleButton1() {
   //regular press
   changeMenuPage(true);
 
-
+  btn_1_down_millis = 0xFFFFFFFF;
+  btn_2_down_millis = 0xFFFFFFFF;
   disable_button_handlers = false; //Done with routine
 }
 
@@ -608,8 +609,8 @@ void handleButton2() {
   if (disable_button_handlers) return; //Return if other button was first
   disable_button_handlers = true; //Set this so the other btn routine can't interfere with double-button
 
-  //if (!debounceButton(BTN_2_PIN, true)) { //Wait for next trigger if still bouncing
-  if (millis() - btn_1_down_millis < DEBOUNCE_DELAY) {
+  //if (!debounceButton(BTN_2_PIN, true)) { //Wait for next trigger if still bouncing or released
+  if (millis() - btn_1_down_millis < DEBOUNCE_DELAY or btn_1_down_millis == 0xFFFFFFFF) {
     disable_button_handlers = false;
     return;
   }
@@ -629,6 +630,8 @@ void handleButton2() {
   //regular press
   changeMenuPage(false);
 
+  btn_1_down_millis = 0xFFFFFFFF;
+  btn_2_down_millis = 0xFFFFFFFF;
   disable_button_handlers = false; //Done with routine
 }
 
@@ -649,23 +652,27 @@ void handleBothButtons() {
     editing_setting = true; //This will be picked up by the display update routine
   }
 
+  btn_1_down_millis = 0xFFFFFFFF;
+  btn_2_down_millis = 0xFFFFFFFF;
   disable_button_handlers = false; //Done with routine
 }
 
 //ALL OF THIS SUCKS!!
 
 void handleButton1Down() {
+  if (millis() - btn_1_up_millis < DEBOUNCE_DELAY) return;
   btn_1_down_millis = millis();
 }
 void handleButton1Up() {
-  btn_1_down_millis = 0xFFFF;
+  btn_1_down_millis = 0xFFFFFFFF;
   btn_1_up_millis = millis();
 }
 void handleButton2Down() {
+  if (millis() - btn_2_up_millis < DEBOUNCE_DELAY) return;
   btn_2_down_millis = millis();
 }
 void handleButton2Up() {
-  btn_2_down_millis = 0xFFFF;
+  btn_2_down_millis = 0xFFFFFFFF;
   btn_2_up_millis = millis();
 }
 
@@ -774,7 +781,7 @@ void setup() {
     blip_delay -= 100;
   }
   delay(blip_delay);
-  
+
   //rtc setup
   Serial.println(F("Setting up RTC..."));
   lcd.clear();
@@ -905,7 +912,7 @@ void setup() {
     day_start_weight = scale.get_units(15);
     EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_EEPROM_ADDR), day_start_weight);
     EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_DAY_EEPROM_ADDR), current_tm.Day);
-    
+
     Serial.print("Saved new starting weight: ");
     Serial.println(day_start_weight);
   }
