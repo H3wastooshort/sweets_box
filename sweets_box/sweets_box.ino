@@ -35,8 +35,8 @@
 #define EEPROM_MAGIC_NUMBER 69
 
 //i should make this a struct
-//                                  0,            1,           2,                    3,                4,                    5
-//                                  scale_offset, scale_scale, max_withdraw_per_day, day_start_weight, day_start_weight_day, buzzer_enabled
+//                                  0,            1,           2,                    3,                    4,                5
+//                                  scale_offset, scale_scale, max_withdraw_per_day, day_start_weight_day, day_start_weight, buzzer_enabled
 /*const uint8_t eeprom_var_sizes[] = {sizeof(long), sizeof(float), sizeof(uint16_t), sizeof(float) , sizeof(uint8_t), sizeof(bool)};
 
   uint16_t getVarAddrEEPROM(uint8_t var_num) {
@@ -192,8 +192,8 @@ void setting_tare() {
   day_start_weight = scale.get_units(15);
   last_day = current_tm.Day - 1; //reset functions in manageLid()
 
-  EEPROM.put(getVarAddrEEPROM(4), (uint8_t)current_tm.Day); //Set starting weight day to today
-  EEPROM.put(getVarAddrEEPROM(3), current_weight); //Set starting weight day to current weight on scale
+  EEPROM.put(getVarAddrEEPROM(3), (uint8_t)current_tm.Day); //Set starting weight day to today
+  EEPROM.put(getVarAddrEEPROM(4), current_weight); //Set starting weight day to current weight on scale
 
   fullDispMsg(F("======DONE======"), F(""));
   delay(1000);
@@ -246,7 +246,7 @@ void setting_limit() {
         max_withdraw_per_day -= 10;
         break;
       case 3:
-        EEPROM.put(getVarAddrEEPROM(3), max_withdraw_per_day);
+        EEPROM.put(getVarAddrEEPROM(2), max_withdraw_per_day);
         return;
     }
   }
@@ -581,6 +581,7 @@ void handleButton1() {
   }
 
   digitalWrite(LED_BUILTIN, HIGH);
+  tone(BUZZER_PIN, 2000, 10);
   while (!digitalRead(BTN_1_PIN)) {} //Wait for release of button
   digitalWrite(LED_BUILTIN, LOW);
 
@@ -609,6 +610,7 @@ void handleButton2() {
   }
 
   digitalWrite(LED_BUILTIN, HIGH);
+  tone(BUZZER_PIN, 2000, 10);
   while (!digitalRead(BTN_2_PIN)) {} //Wait for release of button
   digitalWrite(LED_BUILTIN, LOW);
 
@@ -622,6 +624,7 @@ void handleButton2() {
 
 void handleBothButtons() {
   digitalWrite(LED_BUILTIN, HIGH);
+  tone(BUZZER_PIN, 2000, 10);
   while (!digitalRead(BTN_1_PIN) and !digitalRead(BTN_2_PIN)) {} //Wait for release of button
   digitalWrite(LED_BUILTIN, LOW);
 
@@ -638,6 +641,8 @@ void handleBothButtons() {
 
   disable_button_handlers = false; //Done with routine
 }
+
+//ALL OF THIS SUCKS!!
 
 void handleButton1Down() {
   btn_1_down_millis = millis();
@@ -667,6 +672,8 @@ void manageLimiting() {
     lock_in = false; //allow the thing to open again
     last_day = current_tm.Day;
     day_start_weight = scale.get_units(15);
+    EEPROM.put(getVarAddrEEPROM(3), current_tm.Day);
+    EEPROM.put(getVarAddrEEPROM(4), day_start_weight);
     noTone(BUZZER_PIN);
     digitalWrite(GREEN_LIGHTING_PIN, HIGH); //Green lighting
     digitalWrite(RED_LIGHTING_PIN, LOW);
@@ -742,8 +749,19 @@ void setup() {
   lcd.print(F("Sweets Box by H3"));
   lcd.setCursor(0, 1);
   lcd.print(F("-> hacker3000.cf"));
-  delay(1000);
+  int16_t blip_delay = 1000;
+  for (uint8_t blip = 0; blip < 4; blip++) {
+    tone(BUZZER_PIN, 1000);
+    delay(25);
+    tone(BUZZER_PIN, 2000);
+    delay(25);
+    noTone(BUZZER_PIN);
+    delay(50);
 
+    blip_delay -= 100;
+  }
+  delay(blip_delay);
+  
   //rtc setup
   Serial.println(F("Setting up RTC..."));
   lcd.clear();
@@ -801,6 +819,8 @@ void setup() {
     //if it was rebooted on the same day, keep the starting weight
     uint8_t day_starting_weight_day = 255;
     EEPROM.get(getVarAddrEEPROM(3), day_starting_weight_day);
+    Serial.print(F("Last starting weigt from: "));
+    Serial.println(day_starting_weight_day);
     if (day_starting_weight_day == current_tm.Day) {
       EEPROM.get(getVarAddrEEPROM(4), day_start_weight);
       needs_new_starting_weight = false;
@@ -903,7 +923,7 @@ void loop() { //This loop is very simple
   if (!digitalRead(BTN_1_PIN)) handleButton1();
   if (!digitalRead(BTN_2_PIN)) handleButton2();
 
-  Serial.print(F("Loop time: "));
-  Serial.print(millis() - loop_start_millis);
-  Serial.println(F("ms"));
+  /*Serial.print(F("Loop time: "));
+    Serial.print(millis() - loop_start_millis);
+    Serial.println(F("ms"));*/
 }
