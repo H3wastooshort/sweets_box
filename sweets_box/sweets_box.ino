@@ -34,6 +34,13 @@
 
 #define EEPROM_MAGIC_NUMBER 69
 
+#define SCALE_OFFSET_EEPROM_ADDR 0
+#define SCALE_SCALE_EEPROM_ADDR 1
+#define MAX_WITHDRAW_EEPROM_ADDR 2
+#define DAY_START_WEIGHT_DAY_EEPROM_ADDR 3
+#define DAY_START_WEIGHT_EEPROM_ADDR 4
+#define BUZZER_ENABLED_EEPROM_ADDR 5
+
 //i should make this a struct
 //                                  0,            1,           2,                    3,                    4,                5
 //                                  scale_offset, scale_scale, max_withdraw_per_day, day_start_weight_day, day_start_weight, buzzer_enabled
@@ -162,8 +169,8 @@ void setting_cal() {
   long scale_offset = scale.get_offset();
   float scale_scale = scale.get_scale();
 
-  EEPROM.put(getVarAddrEEPROM(0), scale_offset);
-  EEPROM.put(getVarAddrEEPROM(1), scale_scale);
+  EEPROM.put(getVarAddrEEPROM(SCALE_OFFSET_EEPROM_ADDR), scale_offset);
+  EEPROM.put(getVarAddrEEPROM(SCALE_SCALE_EEPROM_ADDR), scale_scale);
 
   EEPROM.write(EEPROM.length() - 1, EEPROM_MAGIC_NUMBER); //Write magic number for scale cal
 
@@ -192,8 +199,8 @@ void setting_tare() {
   day_start_weight = scale.get_units(15);
   last_day = current_tm.Day - 1; //reset functions in manageLid()
 
-  EEPROM.put(getVarAddrEEPROM(3), (uint8_t)current_tm.Day); //Set starting weight day to today
-  EEPROM.put(getVarAddrEEPROM(4), current_weight); //Set starting weight day to current weight on scale
+  EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_DAY_EEPROM_ADDR), (uint8_t)current_tm.Day); //Set starting weight day to today
+  EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_EEPROM_ADDR), current_weight); //Set starting weight day to current weight on scale
 
   fullDispMsg(F("======DONE======"), F(""));
   delay(1000);
@@ -246,7 +253,7 @@ void setting_limit() {
         max_withdraw_per_day -= 10;
         break;
       case 3:
-        EEPROM.put(getVarAddrEEPROM(2), max_withdraw_per_day);
+        EEPROM.put(getVarAddrEEPROM(MAX_WITHDRAW_EEPROM_ADDR), max_withdraw_per_day);
         return;
     }
   }
@@ -369,10 +376,10 @@ void setting_date() { //note: this function is for setting the date and time, no
 void setting_reset() { //Reset everyting to sensible values
   max_withdraw_per_day = 100; //g
   buzzer_enabled = true;
-  EEPROM.put(getVarAddrEEPROM(2), max_withdraw_per_day);
-  EEPROM.put(getVarAddrEEPROM(3), current_weight); //Set starting weight day to current weight on scale
-  EEPROM.put(getVarAddrEEPROM(4), (uint8_t)current_tm.Day); //Set starting weight day to today
-  EEPROM.put(getVarAddrEEPROM(5), buzzer_enabled);
+  EEPROM.put(getVarAddrEEPROM(MAX_WITHDRAW_EEPROM_ADDR), max_withdraw_per_day);
+  EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_DAY_EEPROM_ADDR), current_weight); //Set starting weight day to current weight on scale
+  EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_EEPROM_ADDR), (uint8_t)current_tm.Day); //Set starting weight day to today
+  EEPROM.put(getVarAddrEEPROM(BUZZER_ENABLED_EEPROM_ADDR), buzzer_enabled);
 
   fullDispMsg(F("Reset settings"), F("to defaults."));
   delay(1000);
@@ -672,11 +679,12 @@ void manageLimiting() {
     lock_in = false; //allow the thing to open again
     last_day = current_tm.Day;
     day_start_weight = scale.get_units(15);
-    EEPROM.put(getVarAddrEEPROM(3), current_tm.Day);
-    EEPROM.put(getVarAddrEEPROM(4), day_start_weight);
+    EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_DAY_EEPROM_ADDR), current_tm.Day); //reset sw day
+    EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_EEPROM_ADDR), day_start_weight); // reset sw to current weight
     noTone(BUZZER_PIN);
     digitalWrite(GREEN_LIGHTING_PIN, HIGH); //Green lighting
     digitalWrite(RED_LIGHTING_PIN, LOW);
+    Serial.println(F("Reset day starting weight because its past 4:00AM on a new day."));
   }
 
   if (lock_in) return;
@@ -789,6 +797,7 @@ void setup() {
       }
     }
   }
+  last_day = current_tm.Day; // set this so the ressetting function does not reset on every boot
 
   //load config
   Serial.println(F("Loading config from EEPROM..."));
@@ -802,10 +811,10 @@ void setup() {
   if (EEPROM.read(EEPROM.length() - 1) == EEPROM_MAGIC_NUMBER) { //If eeprom OK
     //get config from EEPROM
     uint16_t scale_cal_addr = 0;
-    EEPROM.get(getVarAddrEEPROM(0), scale_offset);
-    EEPROM.get(getVarAddrEEPROM(1), scale_scale);
-    EEPROM.get(getVarAddrEEPROM(2), max_withdraw_per_day);
-    EEPROM.get(getVarAddrEEPROM(5), buzzer_enabled);
+    EEPROM.get(getVarAddrEEPROM(SCALE_OFFSET_EEPROM_ADDR), scale_offset);
+    EEPROM.get(getVarAddrEEPROM(SCALE_SCALE_EEPROM_ADDR), scale_scale);
+    EEPROM.get(getVarAddrEEPROM(MAX_WITHDRAW_EEPROM_ADDR), max_withdraw_per_day);
+    EEPROM.get(getVarAddrEEPROM(BUZZER_ENABLED_EEPROM_ADDR), buzzer_enabled);
 
     Serial.print(F("Scale Offset: "));
     Serial.println(scale_offset);
@@ -818,11 +827,11 @@ void setup() {
 
     //if it was rebooted on the same day, keep the starting weight
     uint8_t day_starting_weight_day = 255;
-    EEPROM.get(getVarAddrEEPROM(3), day_starting_weight_day);
+    EEPROM.get(getVarAddrEEPROM(DAY_START_WEIGHT_DAY_EEPROM_ADDR), day_starting_weight_day);
     Serial.print(F("Last starting weigt from: "));
     Serial.println(day_starting_weight_day);
     if (day_starting_weight_day == current_tm.Day) {
-      EEPROM.get(getVarAddrEEPROM(4), day_start_weight);
+      EEPROM.get(getVarAddrEEPROM(DAY_START_WEIGHT_EEPROM_ADDR), day_start_weight);
       needs_new_starting_weight = false;
 
       Serial.print(F("Recoverd Day Starting Weight: "));
@@ -889,6 +898,11 @@ void setup() {
 
   if (needs_new_starting_weight) {
     day_start_weight = scale.get_units(15);
+    EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_EEPROM_ADDR), day_start_weight);
+    EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_DAY_EEPROM_ADDR), current_tm.Day);
+    
+    Serial.print("Saved new starting weight: ");
+    Serial.println(day_start_weight);
   }
 
   //Set up button stuff last to avoid interrupts during startup
