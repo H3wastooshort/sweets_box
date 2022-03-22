@@ -111,6 +111,9 @@ bool editing_setting = false; //set true by interrupt when a setting function sh
 uint32_t btn_1_down_millis = 0xFFFF;
 uint32_t btn_2_down_millis = 0xFFFF;
 
+uint32_t btn_1_up_millis = 0;
+uint32_t btn_2_up_millis = 0;
+
 //menus and stuff
 
 void clearSerialInput() {
@@ -656,12 +659,14 @@ void handleButton1Down() {
 }
 void handleButton1Up() {
   btn_1_down_millis = 0xFFFF;
+  btn_1_up_millis = millis();
 }
 void handleButton2Down() {
-  btn_1_down_millis = millis();
+  btn_2_down_millis = millis();
 }
 void handleButton2Up() {
-  btn_1_down_millis = 0xFFFF;
+  btn_2_down_millis = 0xFFFF;
+  btn_2_up_millis = millis();
 }
 
 
@@ -910,10 +915,6 @@ void setup() {
   pinMode(BTN_1_PIN, INPUT_PULLUP);
   pinMode(BTN_2_PIN, INPUT_PULLUP);
   pinMode(LID_SENSOR_PIN, INPUT_PULLUP);//Technically not a button. whatever
-  //This does not workcause millis() is broken in interrupts. please dont ask how long it took me to debug this
-  //also it really sucks that this is broken because the loop time affects the button responsiveness (spoiler alert, its BAD)
-  //attachInterrupt(digitalPinToInterrupt(BTN_1_PIN), handleButton1, FALLING);
-  //attachInterrupt(digitalPinToInterrupt(BTN_2_PIN), handleButton2, FALLING);
 
   attachInterrupt(digitalPinToInterrupt(BTN_1_PIN), handleButton1Down, FALLING);
   attachInterrupt(digitalPinToInterrupt(BTN_1_PIN), handleButton1Up, RISING);
