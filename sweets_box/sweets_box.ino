@@ -2,7 +2,7 @@
    A sweets box that won't open (and scream) if you take to much out of it
    I actually tried to comment this code
    (I like functions, lets hope i dont fuck up the stack)
-   It may look like i copied large portions from the internet, but in reality im am just VERY inconsistant sometimes :)
+   It may look like i copied large portions from the internet, but in reality im am just VERY inconsistant sometimes :) 95% of the code is mine
 */
 
 #include <LiquidCrystal.h>
@@ -78,27 +78,6 @@ bool buzzer_enabled = true;
 tmElements_t current_tm;
 static uint8_t last_day = 0; //for resetting on new day
 bool lock_in = false;
-
-
-//thank you, mpflaga
-//https://github.com/mpflaga/Arduino-MemoryFree/blob/master/MemoryFree.cpp
-#ifdef __arm__
-// should use uinstd.h to define sbrk but Due causes a conflict
-extern "C" char* sbrk(int incr);
-#else  // __ARM__
-extern char *__brkval;
-#endif  // __arm__
-
-int freeMemory() {
-  char top;
-#ifdef __arm__
-  return &top - reinterpret_cast<char*>(sbrk(0));
-#elif defined(CORE_TEENSY) || (ARDUINO > 103 && ARDUINO != 151)
-  return &top - __brkval;
-#else  // __arm__
-  return __brkval ? &top - __brkval : &top - __malloc_heap_start;
-#endif  // __arm__
-}
 
 
 //Vars for menu stuff
@@ -610,7 +589,7 @@ void handleButton2() {
   disable_button_handlers = true; //Set this so the other btn routine can't interfere with double-button
 
   //if (!debounceButton(BTN_2_PIN, true)) { //Wait for next trigger if still bouncing or released
-  if (millis() - btn_1_down_millis < DEBOUNCE_DELAY or btn_1_down_millis == 0xFFFFFFFF) {
+  if (millis() - btn_2_down_millis < DEBOUNCE_DELAY or btn_2_down_millis == 0xFFFFFFFF) {
     disable_button_handlers = false;
     return;
   }
@@ -820,18 +799,41 @@ void setup() {
   long scale_offset = 0;
   float scale_scale = 1157; //default to this for 1kg load cells
   //Load config from EEPROM if magic number is there
-  if (EEPROM.read(EEPROM.length() - 1) == EEPROM_MAGIC_NUMBER) { //If eeprom OK
+  if (EEPROM.read(EEPROM.length() - 1/*magic numer address for cal*/) == EEPROM_MAGIC_NUMBER) { //read cal
     //get config from EEPROM
-    uint16_t scale_cal_addr = 0;
     EEPROM.get(getVarAddrEEPROM(SCALE_OFFSET_EEPROM_ADDR), scale_offset);
     EEPROM.get(getVarAddrEEPROM(SCALE_SCALE_EEPROM_ADDR), scale_scale);
-    EEPROM.get(getVarAddrEEPROM(MAX_WITHDRAW_EEPROM_ADDR), max_withdraw_per_day);
-    EEPROM.get(getVarAddrEEPROM(BUZZER_ENABLED_EEPROM_ADDR), buzzer_enabled);
 
     Serial.print(F("Scale Offset: "));
     Serial.println(scale_offset);
     Serial.print(F("Scale Scale: "));
     Serial.println(scale_scale);
+  }
+  else { //warn if no calibration in EEPROM
+    Serial.println(F("No valid calibration in EEPROM!\nPlease perform one by sending the character 'C' via Serial."));
+    fullDispMsg(F("No Calibration"), F("in EEPROM!"));
+
+    tone(BUZZER_PIN, 1000);
+    delay(100);
+    tone(BUZZER_PIN, 500);
+    delay(100);
+    noTone(BUZZER_PIN);
+
+    delay(3000);
+
+    fullDispMsg(F("Please go to"), F("Settings, and"));
+    delay(2000);
+
+    fullDispMsg(F("perform"), F("a Calibration"));
+    delay(2000);
+  }
+
+
+  if (EEPROM.read(EEPROM.length() - 2 /*magic number address for config*/) == EEPROM_MAGIC_NUMBER) { //read config
+    EEPROM.get(getVarAddrEEPROM(MAX_WITHDRAW_EEPROM_ADDR), max_withdraw_per_day);
+    EEPROM.get(getVarAddrEEPROM(BUZZER_ENABLED_EEPROM_ADDR), buzzer_enabled);
+
+
     Serial.print(F("Maximum per Day: "));
     Serial.println(max_withdraw_per_day);
     Serial.print(F("Buzzer enabled: "));
@@ -849,24 +851,27 @@ void setup() {
       Serial.print(F("Recoverd Day Starting Weight: "));
       Serial.println(day_start_weight);
     }
-
-    lcd.setCursor(0, 1);
-    lcd.print(F("OK"));
   }
-  else { //warn if no config on EEPROM
+  else {//warn if no config on EEPROM
     Serial.println(F("NO CONFIG IN EEPROM!"));
     fullDispMsg(F("No Config"), F("in EEPROM!"));
+
+    tone(BUZZER_PIN, 1000);
+    delay(100);
+    tone(BUZZER_PIN, 500);
+    delay(100);
+    noTone(BUZZER_PIN);
+
+
     delay(4000);
 
     setting_reset();
+    EEPROM.write(EEPROM.length() - 2, EEPROM_MAGIC_NUMBER);//set magic number
 
-    fullDispMsg(F("Please go to"), F("Settings, do a"));
+    fullDispMsg(F("Please go to"), F("Settings and"));
     delay(2000);
 
-    fullDispMsg(F("Calbriation and"), F("set all Settings"));
-    delay(2000);
-
-    fullDispMsg(F("to your"), F("desired values"));
+    fullDispMsg(F("set all Settings"), F("to desired val"));
     delay(2000);
   }
 
