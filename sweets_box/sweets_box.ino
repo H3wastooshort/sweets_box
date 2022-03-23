@@ -558,8 +558,8 @@ void handleButton1() {
   if (disable_button_handlers) return; //Return if other button was first
   disable_button_handlers = true; //Set this so the other btn routine can't interfere with double-button detection
 
-  //if (!debounceButton(BTN_1_PIN, true)) { //Wait for next trigger if still bouncing or released
-  if (millis() - btn_1_down_millis < DEBOUNCE_DELAY or btn_1_down_millis == 0xFFFFFFFF) {
+  if (!debounceButton(BTN_1_PIN, true)) { //Wait for next trigger if still bouncing or released
+  //if (millis() - btn_1_down_millis < DEBOUNCE_DELAY or btn_1_down_millis == 0xFFFFFFFF) { //fuck the interrupts for now
     disable_button_handlers = false;
     return;
   }
@@ -588,8 +588,8 @@ void handleButton2() {
   if (disable_button_handlers) return; //Return if other button was first
   disable_button_handlers = true; //Set this so the other btn routine can't interfere with double-button
 
-  //if (!debounceButton(BTN_2_PIN, true)) { //Wait for next trigger if still bouncing or released
-  if (millis() - btn_2_down_millis < DEBOUNCE_DELAY or btn_2_down_millis == 0xFFFFFFFF) {
+  if (!debounceButton(BTN_2_PIN, true)) { //Wait for next trigger if still bouncing or released
+  //if (millis() - btn_2_down_millis < DEBOUNCE_DELAY or btn_2_down_millis == 0xFFFFFFFF) { //fuck the interrupts for now
     disable_button_handlers = false;
     return;
   }
@@ -749,7 +749,7 @@ void setup() {
   lcd.setCursor(0, 1);
   lcd.print(F("-> hacker3000.cf"));
   int16_t blip_delay = 1000;
-  for (uint8_t blip = 0; blip < 4; blip++) {
+  for (uint8_t blip = 0; blip < 4; blip++) { //commodore PET like startup sound
     tone(BUZZER_PIN, 1000);
     delay(25);
     tone(BUZZER_PIN, 2000);
