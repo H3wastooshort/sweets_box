@@ -40,11 +40,12 @@
 #define DAY_START_WEIGHT_DAY_EEPROM_ADDR 3
 #define DAY_START_WEIGHT_EEPROM_ADDR 4
 #define BUZZER_ENABLED_EEPROM_ADDR 5
+#define LOCK_IN_EEPROM_ADDR 6
 
 //i should make this a struct
-//                                  0,            1,           2,                    3,                    4,                5
-//                                  scale_offset, scale_scale, max_withdraw_per_day, day_start_weight_day, day_start_weight, buzzer_enabled
-/*const uint8_t eeprom_var_sizes[] = {sizeof(long), sizeof(float), sizeof(uint16_t), sizeof(float) , sizeof(uint8_t), sizeof(bool)};
+//                                  0,            1,           2,                    3,                    4,                5,              6
+//                                  scale_offset, scale_scale, max_withdraw_per_day, day_start_weight_day, day_start_weight, buzzer_enabled, lock_in
+/*const uint8_t eeprom_var_sizes[] = {sizeof(long), sizeof(float), sizeof(uint16_t), sizeof(float) , sizeof(uint8_t), sizeof(bool), sizeof(bool)};
 
   uint16_t getVarAddrEEPROM(uint8_t var_num) {
   int16_t var_addr = 0;
@@ -180,9 +181,11 @@ void setting_tare() {
 
   day_start_weight = scale.get_units(15);
   last_day = current_tm.Day - 1; //reset functions in manageLid()
+  lock_in = false;
 
   EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_DAY_EEPROM_ADDR), (uint8_t)current_tm.Day); //Set starting weight day to today
   EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_EEPROM_ADDR), current_weight); //Set starting weight day to current weight on scale
+  EEPROM.put(getVarAddrEEPROM(LOCK_IN_EEPROM_ADDR), lock_in);
 
   fullDispMsg(F("======DONE======"), F(""));
   delay(1000);
@@ -559,7 +562,7 @@ void handleButton1() {
   disable_button_handlers = true; //Set this so the other btn routine can't interfere with double-button detection
 
   if (!debounceButton(BTN_1_PIN, true)) { //Wait for next trigger if still bouncing or released
-  //if (millis() - btn_1_down_millis < DEBOUNCE_DELAY or btn_1_down_millis == 0xFFFFFFFF) { //fuck the interrupts for now
+    //if (millis() - btn_1_down_millis < DEBOUNCE_DELAY or btn_1_down_millis == 0xFFFFFFFF) { //fuck the interrupts for now
     disable_button_handlers = false;
     return;
   }
@@ -589,7 +592,7 @@ void handleButton2() {
   disable_button_handlers = true; //Set this so the other btn routine can't interfere with double-button
 
   if (!debounceButton(BTN_2_PIN, true)) { //Wait for next trigger if still bouncing or released
-  //if (millis() - btn_2_down_millis < DEBOUNCE_DELAY or btn_2_down_millis == 0xFFFFFFFF) { //fuck the interrupts for now
+    //if (millis() - btn_2_down_millis < DEBOUNCE_DELAY or btn_2_down_millis == 0xFFFFFFFF) { //fuck the interrupts for now
     disable_button_handlers = false;
     return;
   }
@@ -683,6 +686,7 @@ void manageLimiting() {
   if (withdrawn_today > max_withdraw_per_day) {
     if (!digitalRead(LID_SENSOR_PIN)) {
       lock_in = true; //once closed, stay closed, even if sensor is interrupted shortly
+      EEPROM.put(getVarAddrEEPROM(LOCK_IN_EEPROM_ADDR), lock_in); //write lockin to eeprom
       lid_lock.write(SERVO_LID_CLOSE);
       noTone(BUZZER_PIN); //Lid closed. stop beeping
 
@@ -788,7 +792,6 @@ void setup() {
       }
     }
   }
-  last_day = current_tm.Day; // set this so the ressetting function does not reset on every boot
 
   //load config
   Serial.println(F("Loading config from EEPROM..."));
@@ -845,11 +848,15 @@ void setup() {
     Serial.print(F("Last starting weigt from: "));
     Serial.println(day_starting_weight_day);
     if (day_starting_weight_day == current_tm.Day) {
-      EEPROM.get(getVarAddrEEPROM(DAY_START_WEIGHT_EEPROM_ADDR), day_start_weight);
-      needs_new_starting_weight = false;
+      last_day = day_starting_weight_day;
 
+      EEPROM.get(getVarAddrEEPROM(DAY_START_WEIGHT_EEPROM_ADDR), day_start_weight);
       Serial.print(F("Recoverd Day Starting Weight: "));
       Serial.println(day_start_weight);
+
+      EEPROM.get(getVarAddrEEPROM(LOCK_IN_EEPROM_ADDR), lock_in);
+      Serial.print(F("Recoverd LockIn: "));
+      Serial.println(lock_in);
     }
   }
   else {//warn if no config on EEPROM
@@ -911,15 +918,6 @@ void setup() {
     lcd.print(F(">"));
     lcd.print(SCALE_NOISE_THRESH);
     delay(100);
-  }
-
-  if (needs_new_starting_weight) {
-    day_start_weight = scale.get_units(15);
-    EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_EEPROM_ADDR), day_start_weight);
-    EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_DAY_EEPROM_ADDR), current_tm.Day);
-
-    Serial.print("Saved new starting weight: ");
-    Serial.println(day_start_weight);
   }
 
   //Set up button stuff last to avoid interrupts during startup
