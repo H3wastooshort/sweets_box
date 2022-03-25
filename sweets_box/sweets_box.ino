@@ -103,7 +103,7 @@ void logStatistics() { //Function to write log to EEPROM
 
   float withdrawn_today = (current_weight - day_start_weight) * -1;
 
-  Serial.print(F("Loggint to address: "));
+  Serial.print(F("Logging to address: "));
   Serial.println(current_write_pos);
 
   //log time format is 00DDMMYYYY
@@ -798,27 +798,52 @@ void handleSerialControl() { //used for debugging, starts setting functions beca
       disable_button_handlers = false;
       Serial.print(F("Reset EEPROM config to sensible values."));
     }
+    else if (controlCharacter == 'I') {//INIT log EEPROM
+      Wire.beginTransmission(0x50);
+      if (Wire.endTransmission () != 0) { //check if EEPROM present
+        Serial.println(F("Log EEPROM missing."));
+        return;
+      }
+      
+      for (uint16_t log_addr = 0; log_addr >= 4096;) {//clear entire EEPROM
+        log_mem.write(log_addr, 0);
+      }
 
+      log_mem.writeInt(2, 0); //reset write index
+
+      Serial.print(F("Initialized log EEPROM."));
+    }
     else if (controlCharacter == 'L') {//print out log
+      Wire.beginTransmission(0x50);
+      if (Wire.endTransmission () != 0) { //check if EEPROM present
+        Serial.println(F("Log EEPROM missing."));
+        return;
+      }
+
       Serial.println(F("All log data in the EEPROM:\n"));
+      Serial.flush();
 
       for (uint16_t log_addr = 2; log_addr >= 4096;) {//run trough all addresses
         //print time
         Serial.print(F("Date: "));
         Serial.println(log_mem.readLong(log_addr));
+        Serial.flush();
         log_addr += 4;
 
         //print taken
         Serial.print(F("Taken: "));
         Serial.println(log_mem.readFloat(log_addr));
+        Serial.flush();
         log_addr += 4;
 
         //print weight
         Serial.print(F("Weight: "));
         Serial.println(log_mem.readFloat(log_addr));
+        Serial.flush();
         log_addr += 4;
 
         Serial.println(F("----"));
+        Serial.flush();
       }
 
       delay(2500);
