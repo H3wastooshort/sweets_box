@@ -12,6 +12,8 @@
 #include <Wire.h>
 #include <TimeLib.h>
 #include <DS1307RTC.h>
+#include <AT24CX.h> //https://github.com/cyberp/AT24Cx
+
 
 #define RESET_HOUR 4 //Hour to reset the weight on (4 should cover most nightowls as well :) )
 
@@ -71,6 +73,7 @@ uint16_t getVarAddrEEPROM(uint8_t var_num) { //i give up. im going the stupid wa
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 HX711 scale;
 Servo lid_lock;
+AT24C32 log_mem;
 
 //Vars for withdraw (all weights in gram, i hate imperial units)
 float current_weight = 0;
@@ -81,6 +84,59 @@ tmElements_t current_tm;
 static uint8_t last_day = 0; //for resetting on new day
 bool lock_in = false;
 
+void logStatistics() { //Function to write log to EEPROM
+  Wire.beginTransmission(0x50);
+  if (Wire.endTransmission () != 0) { //check if EEPROM present
+    Serial.println(F("Log EEPROM missing. This reset is not logged."));
+    return;
+  }
+
+  Serial.println(F("Logging todays data. Retrive all log data by sending 'L' via Serial."));
+
+
+  //first 2 bytes are for current writing index
+  unsigned int current_write_pos = log_mem.readInt(0); //read current writing pos
+  if (current_write_pos >= 4096) { //if at end of eeprom
+    current_write_pos = 2; //start writing from the beginnig again
+  }
+
+
+  float withdrawn_today = (current_weight - day_start_weight) * -1;
+
+  Serial.print(F("Loggint to address: "));
+  Serial.println(current_write_pos);
+
+  //log time format is 00DDMMYYYY
+  unsigned long logTime = 0;
+  logTime += tmYearToCalendar(current_tm.Year); //last four digits are for year
+  logTime += current_tm.Month * (10 ^ 4); //shift month to 00XXMMXXXX
+  logTime += current_tm.Day * (10 ^ 6); //shifts day to 00DDXXXXXX
+
+  //write time
+  log_mem.writeLong(current_write_pos, logTime);
+  current_write_pos += 4;
+  Serial.print(F("Date number logged: "));
+  Serial.println(logTime);
+
+  //write taken
+  log_mem.writeFloat(current_write_pos, withdrawn_today);
+  current_write_pos += 4;
+  Serial.print(F("Taken today logged: "));
+  Serial.println(logTime);
+
+  //write weight
+  log_mem.writeFloat(current_write_pos, current_weight);
+  current_write_pos += 4;
+  Serial.print(F("Weight logged: "));
+  Serial.println(current_weight);
+
+  //write index
+  log_mem.writeInt(0, current_write_pos); //save the next writable address to address 0
+  Serial.print(F("Next address will be: "));
+  Serial.println(current_write_pos);
+
+  Serial.println(F("Logged todays data."));
+}
 
 //Vars for menu stuff
 bool disable_button_handlers = false;
@@ -179,6 +235,8 @@ void setting_tare() {
 
   fullDispMsg(F("Resetting..."), F("DO NOT TOUCH"));
   delay(1000);
+
+  logStatistics();
 
   day_start_weight = scale.get_units(15);
   last_day = current_tm.Day - 1; //reset functions in manageLid()
@@ -660,8 +718,6 @@ void handleButton2Up() {
   btn_2_up_millis = millis();
 }
 
-
-
 void readDevices() {
   RTC.read(current_tm);
 
@@ -671,7 +727,7 @@ void readDevices() {
   if (millis() - scale_update_last_millis > SCALE_UPDATE_SLOW /*each SCALE_UPDATE_SLOW milliseconds*/ or digitalRead(LID_SENSOR_PIN) /*if lid open*/) {
     current_weight = scale.get_units((digitalRead(LID_SENSOR_PIN)) ? SCALE_SAMPLE_AMOUNT : min(SCALE_SAMPLE_AMOUNT * 2, 15)); //if lid closed, take twice as many samples but at maximum 15
     scale_update_last_millis = millis();
-    
+
     Serial.print(F("Reading time: "));
     Serial.print(millis() - reading_start_millis);
     Serial.println(F("ms"));
@@ -681,13 +737,15 @@ void readDevices() {
 void manageLimiting() {
   float withdrawn_today = (current_weight - day_start_weight) * -1;
 
-  if (last_day != current_tm.Day and current_tm.Hour >= RESET_HOUR) {
+  if (last_day != current_tm.Day and current_tm.Hour >= RESET_HOUR) { //if its n new day and its after RESET_HOUR AM
+    logStatistics(); //log this days data to the EEPROM of the RTC module (if present)
+
     lid_lock.write(SERVO_LID_OPEN); //Unlock the lid
     lock_in = false; //allow the thing to open again
-    last_day = current_tm.Day;
-    day_start_weight = scale.get_units(15);
-    EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_DAY_EEPROM_ADDR), current_tm.Day); //reset sw day
-    EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_EEPROM_ADDR), day_start_weight); // reset sw to current weight
+    last_day = current_tm.Day; //reset sw day to today
+    day_start_weight = scale.get_units(15); //reset sw to todays sw
+    EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_DAY_EEPROM_ADDR), current_tm.Day); //reset sw day in EEPROM
+    EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_EEPROM_ADDR), day_start_weight); // reset sw to current weight in EEPROM
     noTone(BUZZER_PIN);
     digitalWrite(GREEN_LIGHTING_PIN, HIGH); //Green lighting
     digitalWrite(RED_LIGHTING_PIN, LOW);
@@ -740,6 +798,31 @@ void handleSerialControl() { //used for debugging, starts setting functions beca
       disable_button_handlers = false;
       Serial.print(F("Reset EEPROM config to sensible values."));
     }
+
+    else if (controlCharacter == 'L') {//print out log
+      Serial.println(F("All log data in the EEPROM:\n"));
+
+      for (uint16_t log_addr = 2; log_addr >= 4096;) {//run trough all addresses
+        //print time
+        Serial.print(F("Date: "));
+        Serial.println(log_mem.readLong(log_addr));
+        log_addr += 4;
+
+        //print taken
+        Serial.print(F("Taken: "));
+        Serial.println(log_mem.readFloat(log_addr));
+        log_addr += 4;
+
+        //print weight
+        Serial.print(F("Weight: "));
+        Serial.println(log_mem.readFloat(log_addr));
+        log_addr += 4;
+
+        Serial.println(F("----"));
+      }
+
+      delay(2500);
+    }
   }
 }
 
@@ -756,6 +839,8 @@ void setup() {
 
   lid_lock.attach(SERVO_PIN);
   lid_lock.write(SERVO_LID_OPEN);
+
+  Wire.begin(); //this is for the logging EEPROM
 
   //LCD Setup
   Serial.println(F("Setting up LCD and saying hello..."));
@@ -895,7 +980,6 @@ void setup() {
     delay(2000);
   }
 
-
   //Set up Load Cell Amp
   Serial.println(F("Setting up Load Cell Amp"));
   lcd.clear();
@@ -957,7 +1041,6 @@ void loop() { //This loop is very simple
   updateDisplay();
   handleSerialControl();
 
-  //i have to do it this way because millis does not work in interrupts.
   if (!digitalRead(BTN_1_PIN)) handleButton1();
   if (!digitalRead(BTN_2_PIN)) handleButton2();
 
