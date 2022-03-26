@@ -17,6 +17,8 @@
 
 #define RESET_HOUR 4 //Hour to reset the weight on (4 should cover most nightowls as well :) )
 
+#define LOCK_IN_DELAY 2500
+
 #define DEBOUNCE_DELAY 50 //delay in ms
 #define BTN_1_PIN 2 //Up button
 #define BTN_2_PIN 3 //Down button
@@ -754,15 +756,28 @@ void manageLimiting() {
 
   if (lock_in) return;
 
+  static uint32_t lock_in_delay_last_millis = 0xFFFFFFFF;
+  static bool reset_lock_in_delay = false;
   if (withdrawn_today > max_withdraw_per_day) {
     if (!digitalRead(LID_SENSOR_PIN)) {
-      lock_in = true; //once closed, stay closed, even if sensor is interrupted shortly
-      EEPROM.put(getVarAddrEEPROM(LOCK_IN_EEPROM_ADDR), lock_in); //write lockin to eeprom
-      lid_lock.write(SERVO_LID_CLOSE);
-      noTone(BUZZER_PIN); //Lid closed. stop beeping
+      if (reset_lock_in_delay) {
+        lock_in_delay_last_millis = millis();
+        reset_lock_in_delay = false;
+      }
+      if (millis() - lock_in_delay_last_millis > LOCK_IN_DELAY) {
+        lock_in = true; //once closed, stay closed, even if sensor is interrupted shortly
+        EEPROM.put(getVarAddrEEPROM(LOCK_IN_EEPROM_ADDR), lock_in); //write lockin to eeprom
+        lid_lock.write(SERVO_LID_CLOSE);
+        noTone(BUZZER_PIN); //Lid closed. stop beeping
 
-      digitalWrite(GREEN_LIGHTING_PIN, LOW); //Red lighting
-      digitalWrite(RED_LIGHTING_PIN, HIGH);
+        digitalWrite(GREEN_LIGHTING_PIN, LOW); //Red lighting
+        digitalWrite(RED_LIGHTING_PIN, HIGH);
+      }
+      else { //warn that locking is imminent
+        tone(BUZZER_PIN, constrain(map((millis() - lock_in_delay_last_millis), 0, LOCK_IN_DELAY, 750, 250), 250, 750));
+        digitalWrite(GREEN_LIGHTING_PIN, HIGH); //Yellow lighting
+        digitalWrite(RED_LIGHTING_PIN, HIGH);
+      }
     }
     else {
       tone(BUZZER_PIN, 1000); //Annoy the human until they close the lid or put the stuff back
@@ -773,6 +788,7 @@ void manageLimiting() {
   else { //If the stuff was put back before closing the lid, resume normal operation
     noTone(BUZZER_PIN);
     lid_lock.write(SERVO_LID_OPEN);
+    reset_lock_in_delay = true;
     digitalWrite(GREEN_LIGHTING_PIN, HIGH); //Green lighting
     digitalWrite(RED_LIGHTING_PIN, LOW);
   }
@@ -804,7 +820,7 @@ void handleSerialControl() { //used for debugging, starts setting functions beca
         Serial.println(F("Log EEPROM missing."));
         return;
       }
-      
+
       for (uint16_t log_addr = 0; log_addr >= 4096;) {//clear entire EEPROM
         log_mem.write(log_addr, 0);
       }
@@ -848,6 +864,10 @@ void handleSerialControl() { //used for debugging, starts setting functions beca
 
       delay(2500);
     }
+    else if (controlCharacter == 'U') { //unlock box
+      lock_in = false; //unlock
+      EEPROM.put(getVarAddrEEPROM(LOCK_IN_EEPROM_ADDR), lock_in); //write lockin to eeprom
+    }
   }
 }
 
@@ -860,7 +880,8 @@ void setup() {
   digitalWrite(GREEN_LIGHTING_PIN, HIGH);
   digitalWrite(RED_LIGHTING_PIN, HIGH);
   Serial.begin(9600);
-  Serial.print(F("Sweets Box by H3\nhttps://blog.hacker3000.cf/sweetsbox.html\n\n"));
+  Serial.print(F("\n\nSweets Box by H3\nhttps://blog.hacker3000.cf/sweetsbox.html\n\n"));
+  Serial.print(F("Serial Commands\n * 'C' -> Initialize Calibration and confirm its steps\n * 'T' -> Reset starting weight to current weight (requires button interaction)\n * 'L' -> Read all logged resets in EEPROM\n * 'U' -> Unlock lock_in\n * 'R' -> Reset all settings to factory\n * 'I' -> initialize logging EEPROM\n\n"));
 
   lid_lock.attach(SERVO_PIN);
   lid_lock.write(SERVO_LID_OPEN);
