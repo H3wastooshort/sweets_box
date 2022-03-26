@@ -783,6 +783,7 @@ void manageLimiting() {
       tone(BUZZER_PIN, 1000); //Annoy the human until they close the lid or put the stuff back
       digitalWrite(GREEN_LIGHTING_PIN, HIGH); //Yellow lighting
       digitalWrite(RED_LIGHTING_PIN, HIGH);
+      reset_lock_in_delay = true;
     }
   }
   else { //If the stuff was put back before closing the lid, resume normal operation
