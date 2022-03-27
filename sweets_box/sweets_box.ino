@@ -17,7 +17,7 @@
 
 #define RESET_HOUR 4 //Hour to reset the weight on (4 should cover most nightowls as well :) )
 
-#define LOCK_IN_DELAY 2500
+#define LOCK_IN_DELAY 4000
 
 #define DEBOUNCE_DELAY 50 //delay in ms
 #define BTN_1_PIN 2 //Up button
@@ -780,7 +780,7 @@ void manageLimiting() {
       }
     }
     else {
-      tone(BUZZER_PIN, 1000); //Annoy the human until they close the lid or put the stuff back
+      tone(BUZZER_PIN, 1000 + ((uint8_t) millis())); //Annoy the human until they close the lid or put the stuff back
       digitalWrite(GREEN_LIGHTING_PIN, HIGH); //Yellow lighting
       digitalWrite(RED_LIGHTING_PIN, HIGH);
       reset_lock_in_delay = true;
@@ -822,7 +822,7 @@ void handleSerialControl() { //used for debugging, starts setting functions beca
         return;
       }
 
-      for (uint16_t log_addr = 0; log_addr >= 4096;) {//clear entire EEPROM
+      for (uint16_t log_addr = 0; log_addr < 4096;) {//clear entire EEPROM
         log_mem.write(log_addr, 0);
       }
 
@@ -840,7 +840,7 @@ void handleSerialControl() { //used for debugging, starts setting functions beca
       Serial.println(F("All log data in the EEPROM:\n"));
       Serial.flush();
 
-      for (uint16_t log_addr = 2; log_addr >= 4096;) {//run trough all addresses
+      for (uint16_t log_addr = 2; log_addr < 4096;) {//run trough all addresses
         //print time
         Serial.print(F("Date: "));
         Serial.println(log_mem.readLong(log_addr));
@@ -868,6 +868,32 @@ void handleSerialControl() { //used for debugging, starts setting functions beca
     else if (controlCharacter == 'U') { //unlock box
       lock_in = false; //unlock
       EEPROM.put(getVarAddrEEPROM(LOCK_IN_EEPROM_ADDR), lock_in); //write lockin to eeprom
+      Serial.println(F("Unlocked Box."));
+    }
+    else if (controlCharacter == 'D') { //dump all EEPROMs
+      Serial.println(F("==Internal EEPROM=="));
+      for (uint16_t addr = 0; addr < EEPROM.length(); addr++) {
+        char hexbuf[10];
+        sprintf(hexbuf, "%x ", EEPROM.read(addr));
+        Serial.print(hexbuf);
+
+        if (addr % 32 == 0 and addr >= 32) Serial.println(); //add newline every 32 reads
+      }
+      Serial.println(F("\n==EOF==\n"));
+
+      Wire.beginTransmission(0x50);
+      if (Wire.endTransmission () != 0) { //check if RTC EEPROM present
+        return;
+      }
+      Serial.println(F("==RTC EEPROM=="));
+      for (uint16_t addr = 0; addr < 4096; addr++) {
+        char hexbuf[10];
+        sprintf(hexbuf, "%x ", log_mem.read(addr));
+        Serial.print(hexbuf);
+
+        if (addr % 32 == 0 and addr >= 32) Serial.println(); //add newline every 32 reads
+      }
+      Serial.println(F("\n==EOF==\n"));
     }
   }
 }
@@ -882,7 +908,7 @@ void setup() {
   digitalWrite(RED_LIGHTING_PIN, HIGH);
   Serial.begin(9600);
   Serial.print(F("\n\nSweets Box by H3\nhttps://blog.hacker3000.cf/sweetsbox.html\n\n"));
-  Serial.print(F("Serial Commands\n * 'C' -> Initialize Calibration and confirm its steps\n * 'T' -> Reset starting weight to current weight (requires button interaction)\n * 'L' -> Read all logged resets in EEPROM\n * 'U' -> Unlock lock_in\n * 'R' -> Reset all settings to factory\n * 'I' -> initialize logging EEPROM\n\n"));
+  Serial.print(F("Serial Commands\n * 'C' -> Initialize Calibration and confirm its steps\n * 'T' -> Reset starting weight to current weight (requires button interaction)\n * 'L' -> Read all logged resets in EEPROM\n * 'U' -> Unlock lock_in\n * 'R' -> Reset all settings to factory\n * 'I' -> initialize logging EEPROM\n * 'D' -> Dump all EEPROMs\n\n"));
 
   lid_lock.attach(SERVO_PIN);
   lid_lock.write(SERVO_LID_OPEN);
