@@ -30,11 +30,11 @@
 #define SCALE_UPDATE_SLOW 1000 // update interval for when the lid is closed
 
 #define SERVO_PIN 10
-#define SERVO_LID_OPEN 180
-#define SERVO_LID_CLOSE 0
+#define SERVO_LID_OPEN 180 //servo open position in degrees
+#define SERVO_LID_CLOSE 0 //servo closed position in degrees
 
 #define LID_SENSOR_PIN A0
-#define LID_SENSOR_INVERT true //false for reed switch between GND and A0, true for hall effect boards
+#define LID_SENSOR_NO_INVERT false //true for reed switch between GND and A0, false for hall effect boards
 
 #define BUZZER_PIN A1
 #define RED_LIGHTING_PIN A2
@@ -236,7 +236,7 @@ void setting_tare() {
   while (digitalRead(BTN_1_PIN) and digitalRead(BTN_2_PIN)) {}
 
   fullDispMsg(F("Close box"), F(""));
-  while (digitalRead(LID_SENSOR_PIN) xor LID_SENSOR_INVERT) {}
+  while (digitalRead(LID_SENSOR_PIN) != LID_SENSOR_NO_INVERT) {}
 
   fullDispMsg(F("Resetting..."), F("DO NOT TOUCH"));
   delay(1000);
@@ -729,8 +729,8 @@ void readDevices() {
   auto reading_start_millis = millis();
 
   static uint32_t scale_update_last_millis = 0;
-  if (millis() - scale_update_last_millis > SCALE_UPDATE_SLOW /*each SCALE_UPDATE_SLOW milliseconds*/ or (digitalRead(LID_SENSOR_PIN) xor LID_SENSOR_INVERT) /*if lid open*/) {
-    current_weight = scale.get_units((digitalRead(LID_SENSOR_PIN) xor LID_SENSOR_INVERT) ? SCALE_SAMPLE_AMOUNT : min(SCALE_SAMPLE_AMOUNT * 2, 15)); //if lid closed, take twice as many samples but at maximum 15
+  if (millis() - scale_update_last_millis > SCALE_UPDATE_SLOW /*each SCALE_UPDATE_SLOW milliseconds*/ or (digitalRead(LID_SENSOR_PIN) != LID_SENSOR_NO_INVERT) /*if lid open*/) {
+    current_weight = scale.get_units((digitalRead(LID_SENSOR_PIN) != LID_SENSOR_NO_INVERT) ? SCALE_SAMPLE_AMOUNT : min(SCALE_SAMPLE_AMOUNT * 2, 15)); //if lid closed, take twice as many samples but at maximum 15
     scale_update_last_millis = millis();
 
     Serial.print(F("Reading time: "));
@@ -762,7 +762,7 @@ void manageLimiting() {
   static uint32_t lock_in_delay_last_millis = 0xFFFFFFFF;
   static bool reset_lock_in_delay = false;
   if (withdrawn_today > max_withdraw_per_day) {
-    if (!digitalRead(LID_SENSOR_PIN) xor LID_SENSOR_INVERT) {
+    if (digitalRead(LID_SENSOR_PIN) == LID_SENSOR_NO_INVERT) {
       if (reset_lock_in_delay) {
         lock_in_delay_last_millis = millis();
         reset_lock_in_delay = false;
@@ -1097,7 +1097,7 @@ void setup() {
   Serial.println(F("Setting up button interrupts..."));
   pinMode(BTN_1_PIN, INPUT_PULLUP);
   pinMode(BTN_2_PIN, INPUT_PULLUP);
-  pinMode(LID_SENSOR_PIN, LID_SENSOR_INVERT ? INPUT : INPUT_PULLUP);//Technically not a button. whatever
+  pinMode(LID_SENSOR_PIN, LID_SENSOR_NO_INVERT ? INPUT : INPUT_PULLUP);//Technically not a button. whatever
 
   attachInterrupt(digitalPinToInterrupt(BTN_1_PIN), handleButton1Down, FALLING);
   attachInterrupt(digitalPinToInterrupt(BTN_1_PIN), handleButton1Up, RISING);
