@@ -32,6 +32,7 @@
 #define SERVO_PIN 10
 #define SERVO_LID_OPEN 180 //servo open position in degrees
 #define SERVO_LID_CLOSE 0 //servo closed position in degrees
+#define SERVO_ON_TIME 2000 //time to drive the servo for in milliseconds
 
 #define LID_SENSOR_PIN A0
 #define LID_SENSOR_NO_INVERT false //true for reed switch between GND and A0, false for hall effect boards
@@ -143,6 +144,14 @@ void logStatistics() { //Function to write log to EEPROM
   Serial.println(F("Logged todays data."));
 }
 
+//servo control
+uint32_t servo_pos_set_millis = 0xFFFFFFFF;
+void setServo(int16_t servo_angle) {
+  lid_lock.attach(SERVO_PIN);
+  lid_lock.write(servo_angle);
+  servo_pos_set_millis = millis();
+}
+
 //Vars for menu stuff
 bool disable_button_handlers = false;
 int8_t main_screen = 0; //which standby screen to show -2 = in some menu
@@ -231,7 +240,7 @@ void setting_cal() {
 }
 
 void setting_tare() {
-  lid_lock.write(SERVO_LID_OPEN);//open lid and wait for fill
+  setServo(SERVO_LID_OPEN);//open lid and wait for fill
   fullDispMsg(F("Fill up box"), F("then bress btn"));
   while (digitalRead(BTN_1_PIN) and digitalRead(BTN_2_PIN)) {}
 
@@ -745,7 +754,7 @@ void manageLimiting() {
   if (last_day != current_tm.Day and current_tm.Hour >= RESET_HOUR) { //if its n new day and its after RESET_HOUR AM
     logStatistics(); //log this days data to the EEPROM of the RTC module (if present)
 
-    lid_lock.write(SERVO_LID_OPEN); //Unlock the lid
+    setServo(SERVO_LID_OPEN); //Unlock the lid
     lock_in = false; //allow the thing to open again
     last_day = current_tm.Day; //reset sw day to today
     day_start_weight = scale.get_units(15); //reset sw to todays sw
@@ -761,7 +770,9 @@ void manageLimiting() {
 
   static uint32_t lock_in_delay_last_millis = 0xFFFFFFFF;
   static bool reset_lock_in_delay = false;
+  bool open_servo = true; //stops setServo() from constantly being called when open
   if (withdrawn_today > max_withdraw_per_day) {
+    open_servo = true;
     if (digitalRead(LID_SENSOR_PIN) == LID_SENSOR_NO_INVERT) {
       if (reset_lock_in_delay) {
         lock_in_delay_last_millis = millis();
@@ -770,7 +781,7 @@ void manageLimiting() {
       if (millis() - lock_in_delay_last_millis > LOCK_IN_DELAY) {
         lock_in = true; //once closed, stay closed, even if sensor is interrupted shortly
         EEPROM.put(getVarAddrEEPROM(LOCK_IN_EEPROM_ADDR), lock_in); //write lockin to eeprom
-        lid_lock.write(SERVO_LID_CLOSE);
+        setServo(SERVO_LID_CLOSE);
         noTone(BUZZER_PIN); //Lid closed. stop beeping
 
         digitalWrite(GREEN_LIGHTING_PIN, LOW); //Red lighting
@@ -791,10 +802,19 @@ void manageLimiting() {
   }
   else { //If the stuff was put back before closing the lid, resume normal operation
     noTone(BUZZER_PIN);
-    lid_lock.write(SERVO_LID_OPEN);
+    if (open_servo) {
+      setServo(SERVO_LID_OPEN);
+      open_servo = false;
+    }
     reset_lock_in_delay = true;
     digitalWrite(GREEN_LIGHTING_PIN, HIGH); //Green lighting
     digitalWrite(RED_LIGHTING_PIN, LOW);
+  }
+
+  //turn off servo after delay so i does not make annoying sounds (the load cell reading function probably turns off interrupts)
+  if ((millis() - servo_pos_set_millis > SERVO_ON_TIME) and servo_pos_set_millis != 0xFFFFFFFF) {
+    lid_lock.detach();
+    servo_pos_set_millis = 0xFFFFFFFF;
   }
 }
 
@@ -913,8 +933,9 @@ void setup() {
   Serial.print(F("\n\nSweets Box by H3\nhttps://blog.hacker3000.cf/sweetsbox.html\n\n"));
   Serial.print(F("Serial Commands\n * 'C' -> Initialize Calibration and confirm its steps\n * 'T' -> Reset starting weight to current weight (requires button interaction)\n * 'L' -> Read all logged resets in EEPROM\n * 'U' -> Unlock lock_in\n * 'R' -> Reset all settings to factory\n * 'I' -> initialize logging EEPROM\n * 'D' -> Dump all EEPROMs\n\n"));
 
+  //TODO: turn off servo after sending command.
   lid_lock.attach(SERVO_PIN);
-  lid_lock.write(SERVO_LID_OPEN);
+  setServo(SERVO_LID_OPEN);
 
   Wire.begin(); //this is for the logging EEPROM
 
