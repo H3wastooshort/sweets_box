@@ -150,6 +150,8 @@ void setServo(int16_t servo_angle) {
   lid_lock.attach(SERVO_PIN);
   lid_lock.write(servo_angle);
   servo_pos_set_millis = millis();
+  Serial.print(F("Servo set to "));
+  Serial.println(servo_angle);
 }
 
 //Vars for menu stuff
@@ -760,19 +762,24 @@ void manageLimiting() {
     day_start_weight = scale.get_units(15); //reset sw to todays sw
     EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_DAY_EEPROM_ADDR), current_tm.Day); //reset sw day in EEPROM
     EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_EEPROM_ADDR), day_start_weight); // reset sw to current weight in EEPROM
+    EEPROM.put(getVarAddrEEPROM(LOCK_IN_EEPROM_ADDR), lock_in); // reset lock_in
     noTone(BUZZER_PIN);
     digitalWrite(GREEN_LIGHTING_PIN, HIGH); //Green lighting
     digitalWrite(RED_LIGHTING_PIN, LOW);
     Serial.println(F("Reset day starting weight because its past 4:00AM on a new day."));
   }
 
-  if (lock_in) return;
+  if (lock_in) {
+    digitalWrite(GREEN_LIGHTING_PIN, LOW); //Red lighting
+    digitalWrite(RED_LIGHTING_PIN, HIGH);
+    return;
+  }
 
   static uint32_t lock_in_delay_last_millis = 0xFFFFFFFF;
   static bool reset_lock_in_delay = false;
-  bool open_servo = true; //stops setServo() from constantly being called when open
+  static bool change_servo = true; //stops setServo() from constantly being called when open
   if (withdrawn_today > max_withdraw_per_day) {
-    open_servo = true;
+    change_servo = true;
     if (digitalRead(LID_SENSOR_PIN) == LID_SENSOR_NO_INVERT) {
       if (reset_lock_in_delay) {
         lock_in_delay_last_millis = millis();
@@ -802,9 +809,9 @@ void manageLimiting() {
   }
   else { //If the stuff was put back before closing the lid, resume normal operation
     noTone(BUZZER_PIN);
-    if (open_servo) {
+    if (change_servo) {
       setServo(SERVO_LID_OPEN);
-      open_servo = false;
+      change_servo = false;
     }
     reset_lock_in_delay = true;
     digitalWrite(GREEN_LIGHTING_PIN, HIGH); //Green lighting
@@ -933,7 +940,6 @@ void setup() {
   Serial.print(F("\n\nSweets Box by H3\nhttps://blog.hacker3000.cf/sweetsbox.html\n\n"));
   Serial.print(F("Serial Commands\n * 'C' -> Initialize Calibration and confirm its steps\n * 'T' -> Reset starting weight to current weight (requires button interaction)\n * 'L' -> Read all logged resets in EEPROM\n * 'U' -> Unlock lock_in\n * 'R' -> Reset all settings to factory\n * 'I' -> initialize logging EEPROM\n * 'D' -> Dump all EEPROMs\n\n"));
 
-  //TODO: turn off servo after sending command.
   lid_lock.attach(SERVO_PIN);
   setServo(SERVO_LID_OPEN);
 
