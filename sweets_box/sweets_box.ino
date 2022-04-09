@@ -565,7 +565,7 @@ void updateDisplay() {
           break;
 
         case 5:
-          setting_state =  F("needs 1kg ref");
+          setting_state =  F("needs 500g ref");
           break;
 
         case 6:
@@ -795,13 +795,13 @@ void manageLimiting() {
         digitalWrite(RED_LIGHTING_PIN, HIGH);
       }
       else { //warn that locking is imminent
-        tone(BUZZER_PIN, constrain(map((millis() - lock_in_delay_last_millis), 0, LOCK_IN_DELAY, 750, 250), 250, 750));
+        if (buzzer_enabled) tone(BUZZER_PIN, constrain(map((millis() - lock_in_delay_last_millis), 0, LOCK_IN_DELAY, 750, 250), 250, 750));
         digitalWrite(GREEN_LIGHTING_PIN, HIGH); //Yellow lighting
         digitalWrite(RED_LIGHTING_PIN, HIGH);
       }
     }
     else {
-      tone(BUZZER_PIN, 1000 + ((uint8_t) millis())); //Annoy the human until they close the lid or put the stuff back
+      if (buzzer_enabled) tone(BUZZER_PIN, 1000 + ((uint8_t) millis())); //Annoy the human until they close the lid or put the stuff back
       digitalWrite(GREEN_LIGHTING_PIN, HIGH); //Yellow lighting
       digitalWrite(RED_LIGHTING_PIN, HIGH);
       reset_lock_in_delay = true;
@@ -822,6 +822,7 @@ void manageLimiting() {
   if ((millis() - servo_pos_set_millis > SERVO_ON_TIME) and servo_pos_set_millis != 0xFFFFFFFF) {
     lid_lock.detach();
     servo_pos_set_millis = 0xFFFFFFFF;
+    Serial.println(F("Turned off servo after timeout."));
   }
 }
 
