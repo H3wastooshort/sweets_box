@@ -89,6 +89,8 @@ bool buzzer_enabled = true;
 tmElements_t current_tm;
 static uint8_t last_day = 0; //for resetting on new day
 bool lock_in = false;
+bool open_servo = true; //stops setServo() from constantly being called when open
+bool close_servo = true; //stops setServo() from constantly being called when open
 
 void logStatistics() { //Function to write log to EEPROM
   Wire.beginTransmission(0x50);
@@ -329,9 +331,13 @@ void setting_tare_keep() {
   //last_day = current_tm.Day - 1; //reset functions in manageLid()
   //lock_in = (day_start_weight > max_withdraw_per_day);
 
-  EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_DAY_EEPROM_ADDR), (uint8_t)current_tm.Day); //Set starting weight day to today
-  EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_EEPROM_ADDR), current_weight); //Set starting weight day to current weight on scale
-  EEPROM.put(getVarAddrEEPROM(LOCK_IN_EEPROM_ADDR), lock_in);
+  //EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_DAY_EEPROM_ADDR), (uint8_t)current_tm.Day); //Set starting weight day to today
+  EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_EEPROM_ADDR), day_start_weight); //Set starting weight day to current weight on scale
+  //EEPROM.put(getVarAddrEEPROM(LOCK_IN_EEPROM_ADDR), lock_in);
+
+  //we messed with the servo so manageLimiting() must reset it
+  open_servo = true;
+  close_servo = true;
 
   fullDispMsg(F("======DONE======"), F(""));
   delay(1000);
@@ -811,7 +817,6 @@ void manageLimiting() {
     Serial.println(F("Reset day starting weight because its past 4:00AM on a new day."));
   }
 
-  static bool close_servo = true;//stops setServo() from constantly being called when closed
   if (lock_in) {
     digitalWrite(GREEN_LIGHTING_PIN, LOW); //Red lighting
     digitalWrite(RED_LIGHTING_PIN, HIGH);
@@ -825,7 +830,6 @@ void manageLimiting() {
 
   static uint32_t lock_in_delay_last_millis = 0xFFFFFFFF;
   static bool reset_lock_in_delay = false;
-  static bool open_servo = true; //stops setServo() from constantly being called when open
   if (withdrawn_today > max_withdraw_per_day) {
     open_servo = true;
     if (digitalRead(LID_SENSOR_PIN) == LID_SENSOR_NO_INVERT) {
