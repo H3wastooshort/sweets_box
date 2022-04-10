@@ -241,6 +241,7 @@ void setting_cal() {
   scale.set_medavg_mode();
 }
 
+//TODO: allow option to keep the current taken_today after tare
 void setting_tare() {
   setServo(SERVO_LID_OPEN);//open lid and wait for fill
   fullDispMsg(F("Fill up box"), F("then bress btn"));
@@ -769,17 +770,23 @@ void manageLimiting() {
     Serial.println(F("Reset day starting weight because its past 4:00AM on a new day."));
   }
 
+  static bool close_servo = true;//stops setServo() from constantly being called when closed
   if (lock_in) {
     digitalWrite(GREEN_LIGHTING_PIN, LOW); //Red lighting
     digitalWrite(RED_LIGHTING_PIN, HIGH);
-    return;
+    if (close_servo) {
+      setServo(SERVO_LID_CLOSE);
+      close_servo = false;
+    }
+    return; //no need to execute the rest
   }
+  close_servo = true; //reset if lock_in gone
 
   static uint32_t lock_in_delay_last_millis = 0xFFFFFFFF;
   static bool reset_lock_in_delay = false;
-  static bool change_servo = true; //stops setServo() from constantly being called when open
+  static bool open_servo = true; //stops setServo() from constantly being called when open
   if (withdrawn_today > max_withdraw_per_day) {
-    change_servo = true;
+    open_servo = true;
     if (digitalRead(LID_SENSOR_PIN) == LID_SENSOR_NO_INVERT) {
       if (reset_lock_in_delay) {
         lock_in_delay_last_millis = millis();
@@ -809,9 +816,9 @@ void manageLimiting() {
   }
   else { //If the stuff was put back before closing the lid, resume normal operation
     noTone(BUZZER_PIN);
-    if (change_servo) {
+    if (open_servo) {
       setServo(SERVO_LID_OPEN);
-      change_servo = false;
+      open_servo = false;
     }
     reset_lock_in_delay = true;
     digitalWrite(GREEN_LIGHTING_PIN, HIGH); //Green lighting
@@ -942,7 +949,7 @@ void setup() {
   Serial.print(F("Serial Commands\n * 'C' -> Initialize Calibration and confirm its steps\n * 'T' -> Reset starting weight to current weight (requires button interaction)\n * 'L' -> Read all logged resets in EEPROM\n * 'U' -> Unlock lock_in\n * 'R' -> Reset all settings to factory\n * 'I' -> initialize logging EEPROM\n * 'D' -> Dump all EEPROMs\n\n"));
 
   lid_lock.attach(SERVO_PIN);
-  setServo(SERVO_LID_OPEN);
+  setServo(SERVO_LID_CLOSE);
 
   Wire.begin(); //this is for the logging EEPROM
 
