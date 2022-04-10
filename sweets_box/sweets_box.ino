@@ -244,11 +244,12 @@ void setting_cal() {
 //TODO: allow option to keep the current taken_today after tare
 void setting_tare() {
   setServo(SERVO_LID_OPEN);//open lid and wait for fill
-  fullDispMsg(F("Fill up box"), F("then bress btn"));
-  while (digitalRead(BTN_1_PIN) and digitalRead(BTN_2_PIN)) {}
 
-  fullDispMsg(F("Close box"), F(""));
+  fullDispMsg(F("Fill up box"), F("then close box"));
   while (digitalRead(LID_SENSOR_PIN) != LID_SENSOR_NO_INVERT) {}
+
+  fullDispMsg(F("take away hands"), F("then press btn"));
+  while (digitalRead(BTN_1_PIN) and digitalRead(BTN_2_PIN)) {}
 
   fullDispMsg(F("Resetting..."), F("DO NOT TOUCH"));
   delay(1000);
@@ -298,6 +299,42 @@ gbb_debounce:
   digitalWrite(LED_BUILTIN, LOW);
 
   return button_state;
+}
+
+void setting_tare_keep() {
+  float old_taken;
+
+  fullDispMsg(F("Close Box"), F(""));
+  while (digitalRead(LID_SENSOR_PIN) != LID_SENSOR_NO_INVERT) {}
+  delay(250);
+  setServo(SERVO_LID_CLOSE);
+
+  fullDispMsg(F("take away hands"), F("then press btn"));
+  getButtonBlocking(); //just discard button value
+
+  fullDispMsg(F("Please wait..."), F("DO NOT TOUCH"));
+  old_taken = (scale.get_units(15) - day_start_weight) * -1;
+
+  setServo(SERVO_LID_OPEN);
+  fullDispMsg(F("fill up box"), F("then press btn"));
+  getButtonBlocking(); //just discard button value
+
+  fullDispMsg(F("Close Box"), F(""));
+  while (digitalRead(LID_SENSOR_PIN) != LID_SENSOR_NO_INVERT) {}
+  delay(250);
+  setServo(SERVO_LID_CLOSE);
+  float new_weight = scale.get_units(15);
+
+  day_start_weight = new_weight + old_taken;
+  //last_day = current_tm.Day - 1; //reset functions in manageLid()
+  //lock_in = (day_start_weight > max_withdraw_per_day);
+
+  EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_DAY_EEPROM_ADDR), (uint8_t)current_tm.Day); //Set starting weight day to today
+  EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_EEPROM_ADDR), current_weight); //Set starting weight day to current weight on scale
+  EEPROM.put(getVarAddrEEPROM(LOCK_IN_EEPROM_ADDR), lock_in);
+
+  fullDispMsg(F("======DONE======"), F(""));
+  delay(1000);
 }
 
 void setting_limit() {
@@ -448,9 +485,9 @@ void setting_reset() { //Reset everyting to sensible values
 }
 
 //Setting names and functions
-#define N_OF_SETTINGS 7
-const char* settings_names[N_OF_SETTINGS] = {"EXIT SETTINGS", "Overdraft Buzzer", "Tare Scale", "Maximum per day", "Set current Date", "Calibrate Scale", "RESET SETTINGS"};
-void (*settings_functions[N_OF_SETTINGS])() = {setting_exit, setting_buzzer, setting_tare, setting_limit, setting_date, setting_cal};
+#define N_OF_SETTINGS 8
+const char* settings_names[N_OF_SETTINGS] = {"EXIT SETTINGS", "Overdraft Buzzer", "Tare&KeepTaken", "Tare&ResetTaken", "Maximum per day", "Set current Date", "Calibrate Scale", "RESET SETTINGS"};
+void (*settings_functions[N_OF_SETTINGS])() = {setting_exit, setting_buzzer, setting_tare_keep, setting_tare, setting_limit, setting_date, setting_cal};
 
 #define N_OF_MAIN_SCREENS 2
 
@@ -554,22 +591,26 @@ void updateDisplay() {
           break;
 
         case 2:
-          setting_state =  F("Do after refill");
+          setting_state =  F("run BEFORE refill");
           break;
 
         case 3:
+          setting_state =  F("TakenToday -> 0g");
+          break;
+
+        case 4:
           setting_state += max_withdraw_per_day;
           setting_state += "g";
           break;
 
-        case 4:
-          break;
-
         case 5:
-          setting_state =  F("needs 500g ref");
           break;
 
         case 6:
+          setting_state =  F("needs 500g ref");
+          break;
+
+        case 7:
           setting_state =  F("to defaults?");
           break;
       }
