@@ -187,6 +187,7 @@ void setting_exit() {
   setting_selected = -2;
   main_screen = 0;
   editing_setting = false;
+  EEPROM.put(getVarAddrEEPROM(BUZZER_ENABLED_EEPROM_ADDR), buzzer_enabled);
 }
 
 void setting_cal() {
@@ -343,6 +344,53 @@ void setting_tare_keep() {
   delay(1000);
 }
 
+void setting_add_ootb() {
+  //declare all vars before goto label
+  float sweet_weight, new_weight, old_weight;
+  String sweets_weight_str;
+
+  fullDispMsg(F("Close Box"), F(""));
+  while (digitalRead(LID_SENSOR_PIN) != LID_SENSOR_NO_INVERT) {}
+  delay(250);
+  setServo(SERVO_LID_CLOSE);
+
+another_ootb_sweet:
+  fullDispMsg(F("take away hands"), F("and clear top"));
+  getButtonBlocking(); //just discard button value
+
+  fullDispMsg(F("Please wait..."), F("DO NOT TOUCH"));
+  old_weight = scale.get_units(15);
+
+  fullDispMsg(F("Lay OOTB sweet"), F("on top of box"));
+  getButtonBlocking(); //just discard button value
+
+  fullDispMsg(F("Please wait..."), F("DO NOT TOUCH"));
+  new_weight = scale.get_units(15);
+
+  sweet_weight = new_weight - old_weight; //calc weight of sweet
+  day_start_weight += sweet_weight;
+
+  sweets_weight_str = F("Weight was ");
+  sweets_weight_str += sweet_weight;
+  sweets_weight_str += "g";
+
+  EEPROM.put(getVarAddrEEPROM(DAY_START_WEIGHT_EEPROM_ADDR), day_start_weight);
+
+  fullDispMsg(F("Sweet registered"), sweets_weight_str);
+  delay(2000);
+
+  fullDispMsg(F("UP->another"), F("DOWN->quit"));
+  if (getButtonBlocking() == 1) goto another_ootb_sweet;
+
+  //we messed with the servo so manageLimiting() must reset it
+  open_servo = true;
+  close_servo = true;
+  setServo(SERVO_LID_OPEN);
+
+  fullDispMsg(F("======DONE======"), F(""));
+  delay(1000);
+}
+
 void setting_limit() {
   while (true) {
     lcd.setCursor(0, 1);
@@ -491,9 +539,9 @@ void setting_reset() { //Reset everyting to sensible values
 }
 
 //Setting names and functions
-#define N_OF_SETTINGS 8
-const char* settings_names[N_OF_SETTINGS] = {"EXIT SETTINGS", "Overdraft Buzzer", "Tare&KeepTaken", "Tare&ResetTaken", "Maximum per day", "Set current Date", "Calibrate Scale", "RESET SETTINGS"};
-void (*settings_functions[N_OF_SETTINGS])() = {setting_exit, setting_buzzer, setting_tare_keep, setting_tare, setting_limit, setting_date, setting_cal};
+#define N_OF_SETTINGS 9
+const char* settings_names[N_OF_SETTINGS] = {"EXIT SETTINGS", "Add Out-of-Box", "Tare&KeepTaken", "Tare&ResetTaken", "Overdraft Buzzer", "Maximum per day", "Set current Date", "Calibrate Scale", "RESET SETTINGS"};
+void (*settings_functions[N_OF_SETTINGS])() = {setting_exit, setting_add_ootb, setting_tare_keep, setting_tare, setting_buzzer, setting_limit, setting_date, setting_cal};
 
 #define N_OF_MAIN_SCREENS 2
 
@@ -523,7 +571,7 @@ void updateDisplay() {
       switch (main_screen) {
         default:
           main_screen = 0;
-          Serial.println(F("MENU SYSTEM FAULT WHILE DRAWING DISPLAY!!")); //If you get this, something is extremely fucked
+          Serial.println(F("MENU SYSTEM FAULT WHILE DRAWING DISPLAY")); //If you get this, something is extremely fucked
         //continues with case 0
 
         case 0: //scale
@@ -592,8 +640,7 @@ void updateDisplay() {
           break;
 
         case 1:
-          if (buzzer_enabled) setting_state =  F("ENABLED");
-          else setting_state =  F("DISABLED");
+          setting_state =  F("sweet to TakenTD");
           break;
 
         case 2:
@@ -605,18 +652,23 @@ void updateDisplay() {
           break;
 
         case 4:
+          if (buzzer_enabled) setting_state =  F("ENABLED");
+          else setting_state =  F("DISABLED");
+          break;
+
+        case 5:
           setting_state += max_withdraw_per_day;
           setting_state += "g";
           break;
 
-        case 5:
-          break;
-
         case 6:
-          setting_state =  F("needs 500g ref");
           break;
 
         case 7:
+          setting_state =  F("needs 500g ref");
+          break;
+
+        case 8:
           setting_state =  F("to defaults?");
           break;
       }
@@ -814,7 +866,8 @@ void manageLimiting() {
     noTone(BUZZER_PIN);
     digitalWrite(GREEN_LIGHTING_PIN, HIGH); //Green lighting
     digitalWrite(RED_LIGHTING_PIN, LOW);
-    Serial.println(F("Reset day starting weight because its past 4:00AM on a new day."));
+    //Serial.println(F("Reset day starting weight because its past 4:00AM on a new day."));
+    Serial.println(F("DSW reset"));
   }
 
   if (lock_in) {
@@ -874,7 +927,7 @@ void manageLimiting() {
   if ((millis() - servo_pos_set_millis > SERVO_ON_TIME) and servo_pos_set_millis != 0xFFFFFFFF) {
     lid_lock.detach();
     servo_pos_set_millis = 0xFFFFFFFF;
-    Serial.println(F("Turned off servo after timeout."));
+    //Serial.println(F("Turned off servo after timeout."));
   }
 }
 
