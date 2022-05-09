@@ -183,6 +183,24 @@ void fullDispMsg(String line1, String line2) { //Simple function for flashing st
   lcd.print(line2);
 }
 
+void waitTilStable() {
+  // read until stable
+  float w1, w2;
+  w1 = scale.get_units(15);
+  delay(100);
+  w2 = scale.get_units(1);
+  while (abs(w1 - w2) > SCALE_NOISE_THRESH) {
+    w1 = w2;
+    w2 = scale.get_units();
+    lcd.setCursor(12, 0);
+    lcd.print(F(" "));
+    lcd.print((uint8_t)abs(w1 - w2));
+    lcd.print(F(">"));
+    lcd.print(SCALE_NOISE_THRESH);
+    delay(100);
+  }
+}
+
 void setting_exit() {
   setting_selected = -2;
   main_screen = 0;
@@ -199,36 +217,21 @@ void setting_cal() {
   clearSerialInput();
 
   fullDispMsg(F("Calibrating..."), F("DO NOT TOUCH"));
-  // read until stable
-  float w1, w2;
-  w1 = scale.get_units(15);
-  delay(100);
-  w2 = scale.get_units(1);
-  while (abs(w1 - w2) > SCALE_NOISE_THRESH) {
-    w1 = w2;
-    w2 = scale.get_units();
-    lcd.setCursor(12, 0);
-    lcd.print(F(" "));
-    lcd.print((uint8_t)abs(w1 - w2));
-    lcd.print(F(">"));
-    lcd.print(SCALE_NOISE_THRESH);
-    delay(100);
-  }
+  waitTilStable();
   delay(1000);
   scale.tare(250);
-
+  long scale_offset = scale.get_offset();
+  EEPROM.put(getVarAddrEEPROM(SCALE_OFFSET_EEPROM_ADDR), scale_offset);
+  
   fullDispMsg(F("Put 500g in box"), F("then press btn"));
   while (digitalRead(BTN_1_PIN) and digitalRead(BTN_2_PIN) and !Serial.available()) {}
   clearSerialInput();
 
   fullDispMsg(F("Calibrating..."), F("DO NOT TOUCH"));
   delay(1000);
+  waitTilStable();
   scale.calibrate_scale(500, 250); //lets hope this fits in ram
-
-  long scale_offset = scale.get_offset();
   float scale_scale = scale.get_scale();
-
-  EEPROM.put(getVarAddrEEPROM(SCALE_OFFSET_EEPROM_ADDR), scale_offset);
   EEPROM.put(getVarAddrEEPROM(SCALE_SCALE_EEPROM_ADDR), scale_scale);
 
   EEPROM.write(EEPROM.length() - 1, EEPROM_MAGIC_NUMBER); //Write magic number for scale cal
@@ -541,7 +544,7 @@ void setting_reset() { //Reset everyting to sensible values
 //Setting names and functions
 #define N_OF_SETTINGS 9
 const char* settings_names[N_OF_SETTINGS] = {"EXIT SETTINGS", "Add Out-of-Box", "Tare&KeepTaken", "Tare&ResetTaken", "Overdraft Buzzer", "Maximum per day", "Set current Date", "Calibrate Scale", "RESET SETTINGS"};
-void (*settings_functions[N_OF_SETTINGS])() = {setting_exit, setting_add_ootb, setting_tare_keep, setting_tare, setting_buzzer, setting_limit, setting_date, setting_cal};
+void (*settings_functions[N_OF_SETTINGS])() = {setting_exit, setting_add_ootb, setting_tare_keep, setting_tare, setting_buzzer, setting_limit, setting_date, setting_cal, setting_reset};
 
 #define N_OF_MAIN_SCREENS 2
 
@@ -1210,21 +1213,7 @@ void setup() {
   scale.set_scale(scale_scale);
   scale.set_medavg_mode();
 
-  // read until stable
-  float w1, w2;
-  w1 = scale.get_units(15);
-  delay(100);
-  w2 = scale.get_units(1);
-  while (abs(w1 - w2) > SCALE_NOISE_THRESH) {
-    w1 = w2;
-    w2 = scale.get_units();
-    lcd.setCursor(12, 0);
-    lcd.print(F(" "));
-    lcd.print((uint8_t)abs(w1 - w2));
-    lcd.print(F(">"));
-    lcd.print(SCALE_NOISE_THRESH);
-    delay(100);
-  }
+  waitTilStable();
 
   //Set up button stuff last to avoid interrupts during startup
   Serial.println(F("Setting up button interrupts..."));
