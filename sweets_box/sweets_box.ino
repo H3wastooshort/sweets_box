@@ -1,8 +1,6 @@
 /*
    A sweets box that won't open (and scream) if you take to much out of it
-   I actually tried to comment this code
-   (I like functions, lets hope i dont fuck up the stack)
-   It may look like i copied large portions from the internet, but in reality im am just VERY inconsistant sometimes :) 95% of the code is mine
+   I actually tried to comment this code (that didn't work out)
 */
 
 #include <LiquidCrystal.h>
@@ -909,7 +907,8 @@ void manageLimiting() {
       }
     }
     else {
-      if (buzzer_enabled) tone(BUZZER_PIN, 1000 + ((uint8_t) millis())); //Annoy the human until they close the lid or put the stuff back
+      static uint32_t last_beep_millis = 0;
+      if (buzzer_enabled) if (millis() - last_beep_millis > 250) {tone(BUZZER_PIN, 1000, 50); last_beep_millis=millis();} //Annoy the human until they close the lid or put the stuff back
       digitalWrite(GREEN_LIGHTING_PIN, HIGH); //Yellow lighting
       digitalWrite(RED_LIGHTING_PIN, HIGH);
       reset_lock_in_delay = true;
