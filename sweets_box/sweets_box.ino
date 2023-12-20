@@ -1004,8 +1004,8 @@ void setup() {
   digitalWrite(GREEN_LIGHTING_PIN, HIGH);
   digitalWrite(RED_LIGHTING_PIN, HIGH);
   Serial.begin(9600);
-  Serial.print(F("\n\nSweets Box by H3\nhttps://blog.hacker3000.cf/sweetsbox.html\n\n"));
-  Serial.print(F("Serial Commands\n * 'C' -> Initialize Calibration and confirm its steps\n * 'T' -> Reset starting weight to current weight (requires button interaction)\n * 'L' -> Read all logged resets in EEPROM\n * 'U' -> Unlock lock_in\n * 'R' -> Reset all settings to factory\n * 'I' -> initialize logging EEPROM\n * 'D' -> Dump all EEPROMs\n\n"));
+  Serial.print(F("\r\n\r\nSweets Box by H3\r\nhttps://h3.neocities.org/blog/sweetsbox\r\n\r\n"));
+  Serial.print(F("Serial Commands\r\n * 'C' -> Initialize Calibration and confirm its steps\r\n * 'T' -> Reset starting weight to current weight (requires button interaction)\r\n * 'L' -> Read all logged resets in EEPROM\r\n * 'U' -> Unlock lock_in\r\n * 'R' -> Reset all settings to factory\r\n * 'I' -> initialize logging EEPROM\r\n * 'D' -> Dump all EEPROMs\r\n\r\n"));
 
   lid_lock.attach(SERVO_PIN);
   setServo(SERVO_LID_CLOSE);
@@ -1019,7 +1019,7 @@ void setup() {
   lcd.home();
   lcd.print(F("Sweets Box by H3"));
   lcd.setCursor(0, 1);
-  lcd.print(F("-> hacker3000.cf"));
+  lcd.print(F("h3.neocities.org"));
   int16_t blip_delay = 1000;
   for (uint8_t blip = 0; blip < 4; blip++) {  //commodore PET like startup sound
     tone(BUZZER_PIN, 1000);
