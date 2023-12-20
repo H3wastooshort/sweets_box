@@ -25,7 +25,7 @@
 #define SCALE_CLOCK_PIN 12
 #define SCALE_NOISE_THRESH 0.5  //wait until scale noise settled below this value
 #define SCALE_SAMPLE_AMOUNT 3   //how many times to sample the scale (3 times to 15 times)
-#define SCALE_UPDATE_SLOW 1000  // update interval for when the lid is closed
+#define SCALE_SMOOTHING_FACTOR 0.9
 
 #define SERVO_PIN 10
 #define SERVO_LID_OPEN 180  //servo open position in degrees
@@ -789,8 +789,10 @@ void readDevices() {
   auto reading_start_millis = millis();
 
   static uint32_t scale_update_last_millis = 0;
-  if (millis() - scale_update_last_millis > SCALE_UPDATE_SLOW /*each SCALE_UPDATE_SLOW milliseconds*/ or (digitalRead(LID_SENSOR_PIN) != LID_SENSOR_NO_INVERT) /*if lid open*/) {
-    current_weight = scale.get_units((digitalRead(LID_SENSOR_PIN) != LID_SENSOR_NO_INVERT) ? SCALE_SAMPLE_AMOUNT : min(SCALE_SAMPLE_AMOUNT * 2, 15));  //if lid closed, take twice as many samples but at maximum 15
+  if (millis() - scale_update_last_millis > 100 or (digitalRead(LID_SENSOR_PIN) != LID_SENSOR_NO_INVERT) /*if lid open*/) {
+    float measured_weight = scale.get_units((digitalRead(LID_SENSOR_PIN) != LID_SENSOR_NO_INVERT) ? SCALE_SAMPLE_AMOUNT : min(SCALE_SAMPLE_AMOUNT * 2, 15));  //if lid closed, take twice as many samples but at maximum 15
+    if (measured_weight < current_weight) current_weight = measured_weight * (1 - SCALE_SMOOTHING_FACTOR) + current_weight * SCALE_SMOOTHING_FACTOR;          //smooth out measurements
+    else current_weight = measured_weight;                                                                                                                    //make sure the smoothing does not accidentally trigger locking
     scale_update_last_millis = millis();
 
     /*Serial.print(F("Reading time: "));
@@ -817,7 +819,7 @@ void manageLimiting() {
     digitalWrite(RED_LIGHTING_PIN, LOW);
     //Serial.println(F("Reset day starting weight because its past 4:00AM on a new day."));
     Serial.println(F("DSW reset"));
-    withdrawn_today = 0; //make sure the rest of this fuction behaves
+    withdrawn_today = 0;  //make sure the rest of this fuction behaves
   }
 
   if (lock_in) {
