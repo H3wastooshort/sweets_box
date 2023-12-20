@@ -112,23 +112,19 @@ void logStatistics() {  //Function to write log to EEPROM
   Serial.print(F("Logging to address: "));
   Serial.println(current_write_pos);
 
-  //log time format is 00DDMMYYYY
-  unsigned long logTime = 0;
-  logTime += tmYearToCalendar(current_tm.Year);  //last four digits are for year
-  logTime += current_tm.Month * (10 ^ 4);        //shift month to 00XXMMXXXX
-  logTime += current_tm.Day * (10 ^ 6);          //shifts day to 00DDXXXXXX
-
   //write time
-  log_mem.writeLong(current_write_pos, logTime);
-  current_write_pos += 4;
-  Serial.print(F("Date number logged: "));
-  Serial.println(logTime);
+  log_mem.write(current_write_pos, current_tm.Year);
+  current_write_pos += 1;
+  log_mem.write(current_write_pos, current_tm.Month);
+  current_write_pos += 1;
+  log_mem.write(current_write_pos, current_tm.Day);
+  current_write_pos += 1;
 
   //write taken
   log_mem.writeFloat(current_write_pos, withdrawn_today);
   current_write_pos += 4;
   Serial.print(F("Taken today logged: "));
-  Serial.println(logTime);
+  Serial.println(withdrawn_today);
 
   //write weight
   log_mem.writeFloat(current_write_pos, current_weight);
@@ -910,13 +906,21 @@ void handleSerialControl() {  //used for debugging, starts setting functions bec
         return;
       }
 
-      for (uint16_t log_addr = 0; log_addr < 4096; log_addr++) {  //clear entire EEPROM
-        log_mem.write(log_addr, 0);
+      Serial.println(F("Initializing log EEPROM."));
+
+      for (uint16_t addr = 0; addr < 4096; addr++) {  //clear entire EEPROM
+        log_mem.write(addr, 0);
+        if (addr % 16 == 0) {
+          Serial.write('\r');
+          Serial.print(addr);
+          Serial.write(' ');
+        }
       }
-
       log_mem.writeInt(2, 0);  //reset write index
+      Serial.write('\r');
 
-      Serial.print(F("Initialized log EEPROM."));
+      Serial.println(F("Initialized."));
+
     } else if (controlCharacter == 'L') {  //print out log
       Wire.beginTransmission(0x50);
       if (Wire.endTransmission() != 0) {  //check if EEPROM present
@@ -930,9 +934,15 @@ void handleSerialControl() {  //used for debugging, starts setting functions bec
       for (uint16_t log_addr = 2; log_addr < 4096;) {  //run trough all addresses
         //print time
         Serial.print(F("Date: "));
-        Serial.println(log_mem.readLong(log_addr));
+        Serial.print(tmYearToCalendar(log_mem.read(log_addr)));
+        log_addr += 1;
+        Serial.write('-');
+        Serial.print(log_mem.read(log_addr));
+        log_addr += 1;
+        Serial.write('-');
+        Serial.print(log_mem.read(log_addr));
+        log_addr += 1;
         Serial.flush();
-        log_addr += sizeof(unsigned long);
 
         //print taken
         Serial.print(F("Taken: "));
@@ -959,7 +969,7 @@ void handleSerialControl() {  //used for debugging, starts setting functions bec
       Serial.println(F("==Internal EEPROM=="));
       for (uint16_t addr = 0; addr < EEPROM.length(); addr++) {
         char hexbuf[10];
-        sprintf(hexbuf, "%x ", EEPROM.read(addr));
+        sprintf(hexbuf, "%02x ", EEPROM.read(addr));
         Serial.print(hexbuf);
 
         if (addr % 32 == 0 and addr >= 32) Serial.println();  //add newline every 32 reads
@@ -973,7 +983,7 @@ void handleSerialControl() {  //used for debugging, starts setting functions bec
       Serial.println(F("==RTC EEPROM=="));
       for (uint16_t addr = 0; addr < 4096; addr++) {
         char hexbuf[10];
-        sprintf(hexbuf, "%x ", log_mem.read(addr));
+        sprintf(hexbuf, "%02x ", log_mem.read(addr));
         Serial.print(hexbuf);
 
         if (addr % 32 == 0 and addr >= 32) Serial.println();  //add newline every 32 reads
