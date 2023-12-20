@@ -941,6 +941,7 @@ void handleSerialControl() {  //used for debugging, starts setting functions bec
         log_addr += 1;
         Serial.write('-');
         Serial.print(log_mem.read(log_addr));
+        Serial.println();
         log_addr += 1;
         Serial.flush();
 
