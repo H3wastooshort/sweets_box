@@ -817,6 +817,7 @@ void manageLimiting() {
     digitalWrite(RED_LIGHTING_PIN, LOW);
     //Serial.println(F("Reset day starting weight because its past 4:00AM on a new day."));
     Serial.println(F("DSW reset"));
+    withdrawn_today = 0; //make sure the rest of this fuction behaves
   }
 
   if (lock_in) {
