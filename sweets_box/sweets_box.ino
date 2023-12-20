@@ -17,7 +17,7 @@
 
 #define LOCK_IN_DELAY 4000  //how long to wait from detecting too little weight to locking the lid
 
-#define DEBOUNCE_DELAY 100  //delay in ms
+#define DEBOUNCE_DELAY 75  //delay in ms
 #define BTN_1_PIN 2        //Up button
 #define BTN_2_PIN 3        //Down button
 
@@ -720,7 +720,7 @@ void changeMenuPage(bool increase_page) {
 
 void handleButtons() {
   if (millis() - btn_1_down_millis > DEBOUNCE_DELAY and btn_1_down_millis > 0) {  //if pressed long enough ago
-    if (!digitalRead(BTN_1_PIN)) {                      //and it is still held
+    if (!digitalRead(BTN_1_PIN)) {                                                //and it is still held
       if (btn_2_down_millis > 0) {
         handleBothButtons();
         btn_2_down_millis = 0;
@@ -732,7 +732,7 @@ void handleButtons() {
   }
 
   if (millis() - btn_2_down_millis > DEBOUNCE_DELAY and btn_2_down_millis > 0) {  //if pressed long enough ago
-    if (!digitalRead(BTN_2_PIN)) {                      //and it is still held
+    if (!digitalRead(BTN_2_PIN)) {                                                //and it is still held
       if (btn_1_down_millis > 0) {
         handleBothButtons();
         btn_1_down_millis = 0;
@@ -910,7 +910,7 @@ void handleSerialControl() {  //used for debugging, starts setting functions bec
         return;
       }
 
-      for (uint16_t log_addr = 0; log_addr < 4096;) {  //clear entire EEPROM
+      for (uint16_t log_addr = 0; log_addr < 4096; log_addr++) {  //clear entire EEPROM
         log_mem.write(log_addr, 0);
       }
 
@@ -932,19 +932,19 @@ void handleSerialControl() {  //used for debugging, starts setting functions bec
         Serial.print(F("Date: "));
         Serial.println(log_mem.readLong(log_addr));
         Serial.flush();
-        log_addr += 4;
+        log_addr += sizeof(unsigned long);
 
         //print taken
         Serial.print(F("Taken: "));
         Serial.println(log_mem.readFloat(log_addr));
         Serial.flush();
-        log_addr += 4;
+        log_addr += sizeof(float);
 
         //print weight
         Serial.print(F("Weight: "));
         Serial.println(log_mem.readFloat(log_addr));
         Serial.flush();
-        log_addr += 4;
+        log_addr += sizeof(float);
 
         Serial.println(F("----"));
         Serial.flush();
