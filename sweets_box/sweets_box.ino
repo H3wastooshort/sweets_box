@@ -295,7 +295,7 @@ gbb_debounce:
   */
 
   digitalWrite(LED_BUILTIN, HIGH);
-  tone(BUZZER_PIN, 2000, 10);
+  tone(BUZZER_PIN, 1000, 10);
   while (!digitalRead(BTN_1_PIN) or !digitalRead(BTN_2_PIN)) {}  //Wait until buttons are released
   digitalWrite(LED_BUILTIN, LOW);
 
@@ -747,7 +747,7 @@ void handleButtons() {
 void handleButton1() {
   if (disable_button_handlers) return;  //Return if other button was first
 
-  tone(BUZZER_PIN, 2000, 10);
+  tone(BUZZER_PIN, 1600, 10);
 
   Serial.println(F("Button 1 pressed"));
 
@@ -758,7 +758,7 @@ void handleButton1() {
 void handleButton2() {
   if (disable_button_handlers) return;  //Return if other button was first
 
-  tone(BUZZER_PIN, 2000, 10);
+  tone(BUZZER_PIN, 1500, 10);
 
   Serial.println(F("Button 2 pressed"));
 
